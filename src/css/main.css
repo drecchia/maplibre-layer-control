@@ -1,69 +1,162 @@
-.layers-control {
-    position: relative;
+/* LayersControl Styles */
+.maplibregl-ctrl.layers-control {
+    background: white;
+    border-radius: 4px;
+    box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.1);
 }
+
+.layers-control-toggle {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 8px;
+    font-size: 16px;
+    color: #333;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 29px;
+    height: 29px;
+}
+
+.layers-control-toggle:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
 .layers-control-panel {
     position: absolute;
     top: 100%;
     right: 0;
     background: white;
-    border: 1px solid #ccc;
     border-radius: 4px;
-    padding: 10px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
     min-width: 200px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-    z-index: 1000;
-    max-height: 300px;
+    max-width: 300px;
+    max-height: 400px;
     overflow-y: auto;
+    z-index: 1000;
+    margin-top: 4px;
 }
+
+.layers-section:not(:first-child) {
+    padding: 8px 0;
+}
+
 .layers-section-title {
-    font-weight: bold;
-    margin-bottom: 8px;
-    border-bottom: 1px solid #eee;
-    padding-bottom: 4px;
+    font-weight: 600;
+    font-size: 12px;
+    color: #9d9d9d;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 4px 12px 4px;
+    background: #efefef;
 }
+
 .layers-item {
-    margin: 4px 0;
-    display: flex;
-    align-items: center;
-}
-.layers-item input {
-    margin-right: 8px;
-}
-.opacity-control {
-    margin-left: 20px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-.opacity-slider {
-    width: 80px;
-}
-.overlay-status {
-    margin-left: auto;
-    min-width: 16px; /* Ensure minimum space for spinner */
-    text-align: center;
-}
-.overlay-status.loading {
-    animation: spin 1s linear infinite;
-    color: #3498db; /* Blue color for loading */
-}
-.overlay-status.error {
-    color: #e74c3c;
+    padding: 6px 12px;
     cursor: pointer;
+    display: flex;
+    align-items: center;
+    font-size: 12px;
 }
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
+
+.layers-item:hover {
+    background-color: rgba(0, 0, 0, 0.05);
 }
+
+.layers-item.group-item {
+    font-weight: 500;
+    background-color: rgba(0, 0, 0, 0.02);
+}
+
+/* Ensure overlay items layout in a single row with slider */
 .layers-item.overlay-item {
     flex-direction: column;
     align-items: center;
+}
+
+.overlay-label {
+    display: flex;
+    align-items: center;
+    flex: 1;
+    cursor: pointer;
+}
+
+.layers-item input[type="radio"],
+.layers-item input[type="checkbox"] {
+    margin-right: 8px;
+    cursor: pointer;
+}
+
+.overlay-status {
+    margin-left: 8px;
+    font-size: 12px;
+    display: none;
+}
+
+.overlay-status.loading {
+    color: #007cba;
+    animation: spin 1s linear infinite;
+}
+
+.overlay-status.error {
+    color: #d63031;
+    cursor: pointer;
+}
+
+.overlay-status.error:hover {
+    color: #a71e1e;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.opacity-control {
+    margin-top: 4px;
+    padding-left: 20px;
+    display: flex;
+    align-items: center;
     gap: 8px;
 }
-.layers-section.overlay-section {
-    padding-top: 10px;
+
+.opacity-slider {
+    flex: 1;
+    height: 8px;
+    background: #ddd;
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+    width: 110px;
 }
-button.layers-control-toggle {
+
+.opacity-slider::-webkit-slider-thumb {
+    appearance: none;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #007cba;
+    cursor: pointer;
+}
+
+.opacity-slider::-moz-range-thumb {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #007cba;
+    cursor: pointer;
+    border: none;
+}
+
+.opacity-label {
+    font-size: 11px;
+    color: #666;
+    min-width: 30px;
+    text-align: right;
+}
+
+        button.layers-control-toggle {
     height: 40px;
     width: 40px;
 }
