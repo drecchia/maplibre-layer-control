@@ -7,7 +7,8 @@
     
     <!-- MapLibre GL CSS -->
     <link href="https://unpkg.com/maplibre-gl@4.1.1/dist/maplibre-gl.css" rel="stylesheet">
-    <link href="./src/css/main.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/deck.gl@9.1.14/dist/stylesheet.min.css">
+    <!-- <link href="./src/css/main.css" rel="stylesheet"> -->
     
     <style>
         body {
@@ -101,6 +102,13 @@
             background-color: rgba(0, 0, 0, 0.02);
         }
 
+        /* Ensure overlay items layout in a single row with slider */
+        .layers-item.overlay-item {
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+        }
+
         .overlay-label {
             display: flex;
             align-items: center;
@@ -181,47 +189,6 @@
             text-align: right;
         }
 
-        /* Demo Info Panel */
-        .demo-info {
-            position: absolute;
-            top: 10px;
-            left: 10px;
-            background: rgba(255, 255, 255, 0.95);
-            padding: 15px;
-            border-radius: 6px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
-            max-width: 300px;
-            font-size: 14px;
-            z-index: 1000;
-        }
-
-        .demo-info h3 {
-            margin: 0 0 10px 0;
-            color: #333;
-            font-size: 16px;
-        }
-
-        .demo-info p {
-            margin: 0 0 8px 0;
-            color: #666;
-            line-height: 1.4;
-        }
-
-        .demo-info .close-btn {
-            position: absolute;
-            top: 5px;
-            right: 8px;
-            background: none;
-            border: none;
-            font-size: 18px;
-            cursor: pointer;
-            color: #999;
-        }
-
-        .demo-info .close-btn:hover {
-            color: #333;
-        }
-
         /* Console Output */
         .console-output {
             position: absolute;
@@ -270,19 +237,6 @@
 <body>
     <div id="map"></div>
     
-    <!-- Demo Info Panel -->
-    <div class="demo-info" id="demoInfo">
-        <button class="close-btn" onclick="document.getElementById('demoInfo').style.display='none'">&times;</button>
-        <h3>LayersControl - Refactored Demo</h3>
-        <p><strong>Features:</strong></p>
-        <p>• Multiple base maps (OSM Liberty, Satellite)</p>
-        <p>• Grouped overlays (Points of Interest)</p>
-        <p>• Dynamic loading (Weather Radar)</p>
-        <p>• Opacity controls and state persistence</p>
-        <p>• Automatic layer positioning</p>
-        <p><strong>Try:</strong> Toggle layers, adjust opacity, refresh page to see persistence!</p>
-    </div>
-
     <!-- Console Toggle -->
     <button class="console-toggle" onclick="toggleConsole()">Toggle Console</button>
     
@@ -291,6 +245,9 @@
 
     <!-- MapLibre GL JS -->
     <script src="https://unpkg.com/maplibre-gl@4.1.1/dist/maplibre-gl.js"></script>
+    
+    <!-- Deck.gl CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/deck.gl@9.1.14/dist.min.js" integrity="sha256-BZs9dCF93d5VJUgojI/H2++LbrcE6UXIPnZ2mC4PCAM=" crossorigin="anonymous"></script>
     
     <!-- LayersControl Component -->
     <script src="src/js/main.js"></script>
@@ -413,43 +370,30 @@
 
         const overlays = [
             {
-                id: 'restaurants',
+                id: 'restaurants-deck',
                 label: 'Restaurants',
                 group: 'Points of Interest',
-                source: {
-                    id: 'restaurants-source',
-                    type: 'geojson',
-                    options: {
-                        data: sampleRestaurants
-                    }
-                },
-                layers: [
+                deckLayers: [
                     {
-                        id: 'restaurants-layer',
-                        type: 'circle',
-                        source: 'restaurants-source',
-                        paint: {
-                            'circle-color': '#ff6b6b',
-                            'circle-radius': 8,
-                            'circle-stroke-color': '#ffffff',
-                            'circle-stroke-width': 2
-                        }
-                    },
-                    {
-                        id: 'restaurants-labels',
-                        type: 'symbol',
-                        source: 'restaurants-source',
-                        layout: {
-                            'text-field': ['get', 'name'],
-                            'text-font': ['Open Sans Regular'],
-                            'text-offset': [0, 1.5],
-                            'text-anchor': 'top',
-                            'text-size': 12
-                        },
-                        paint: {
-                            'text-color': '#333333',
-                            'text-halo-color': '#ffffff',
-                            'text-halo-width': 1
+                        id: 'restaurants-scatterplot',
+                        type: 'ScatterplotLayer',
+                        props: {
+                            data: sampleRestaurants.features.map(f => ({
+                                position: f.geometry.coordinates,
+                                name: f.properties.name,
+                                type: f.properties.type
+                            })),
+                            getPosition: d => d.position,
+                            getRadius: 50,
+                            getFillColor: [255, 107, 107],
+                            getLineColor: [255, 255, 255],
+                            lineWidthMinPixels: 2,
+                            pickable: true,
+                            onHover: (info) => {
+                                if (info.object) {
+                                    console.log('Hovered restaurant:', info.object.name);
+                                }
+                            }
                         }
                     }
                 ],
@@ -459,43 +403,30 @@
                 panZoom: 12
             },
             {
-                id: 'museums',
+                id: 'museums-deck',
                 label: 'Museums',
                 group: 'Points of Interest',
-                source: {
-                    id: 'museums-source',
-                    type: 'geojson',
-                    options: {
-                        data: sampleMuseums
-                    }
-                },
-                layers: [
+                deckLayers: [
                     {
-                        id: 'museums-layer',
-                        type: 'circle',
-                        source: 'museums-source',
-                        paint: {
-                            'circle-color': '#4ecdc4',
-                            'circle-radius': 8,
-                            'circle-stroke-color': '#ffffff',
-                            'circle-stroke-width': 2
-                        }
-                    },
-                    {
-                        id: 'museums-labels',
-                        type: 'symbol',
-                        source: 'museums-source',
-                        layout: {
-                            'text-field': ['get', 'name'],
-                            'text-font': ['Open Sans Regular'],
-                            'text-offset': [0, 1.5],
-                            'text-anchor': 'top',
-                            'text-size': 12
-                        },
-                        paint: {
-                            'text-color': '#333333',
-                            'text-halo-color': '#ffffff',
-                            'text-halo-width': 1
+                        id: 'museums-scatterplot',
+                        type: 'ScatterplotLayer',
+                        props: {
+                            data: sampleMuseums.features.map(f => ({
+                                position: f.geometry.coordinates,
+                                name: f.properties.name,
+                                type: f.properties.type
+                            })),
+                            getPosition: d => d.position,
+                            getRadius: 60,
+                            getFillColor: [78, 205, 196],
+                            getLineColor: [255, 255, 255],
+                            lineWidthMinPixels: 2,
+                            pickable: true,
+                            onHover: (info) => {
+                                if (info.object) {
+                                    console.log('Hovered museum:', info.object.name);
+                                }
+                            }
                         }
                     }
                 ],
@@ -505,107 +436,94 @@
                 panZoom: 12
             },
             {
-                id: 'weather-radar',
-                label: 'Weather Radar (Dynamic)',
-                renderOnClick: async () => {
-                    console.log('Loading weather radar data...');
-                    
-                    // Simulate API call delay
-                    return new Promise(resolve => {
-                        setTimeout(() => {
-                            console.log('Weather radar data loaded successfully');
-                            resolve({
-                                source: {
-                                    id: 'radar-source',
-                                    type: 'image',
-                                    options: {
-                                        url: 'https://docs.mapbox.com/mapbox-gl-js/assets/radar.gif',
-                                        coordinates: [
-                                            [-80.425, 46.437],
-                                            [-71.516, 46.437], 
-                                            [-71.516, 37.936],
-                                            [-80.425, 37.936]
-                                        ]
-                                    }
-                                },
-                                layers: [
-                                    {
-                                        id: 'radar-layer',
-                                        type: 'raster',
-                                        source: 'radar-source',
-                                        paint: {
-                                            'raster-opacity': 0.8
-                                        }
-                                    }
-                                ]
-                            });
-                        }, 1500);
-                    });
-                },
-                defaultVisible: false,
-                opacityControls: true,
-                panOnAdd: true,
-                panZoom: 6
-            },
-            {
-                id: 'traffic-simulation',
-                label: 'Traffic Simulation',
-                source: {
-                    id: 'traffic-source',
-                    type: 'geojson',
-                    options: {
-                        data: {
-                            type: 'FeatureCollection',
-                            features: [
-                                {
-                                    type: 'Feature',
-                                    geometry: {
-                                        type: 'LineString',
-                                        coordinates: [
-                                            [-74.0059, 40.7128],
-                                            [-74.0000, 40.7200],
-                                            [-73.9950, 40.7250]
-                                        ]
-                                    },
-                                    properties: { traffic: 'heavy' }
-                                },
-                                {
-                                    type: 'Feature',
-                                    geometry: {
-                                        type: 'LineString',
-                                        coordinates: [
-                                            [-73.9900, 40.7300],
-                                            [-73.9850, 40.7350],
-                                            [-73.9800, 40.7400]
-                                        ]
-                                    },
-                                    properties: { traffic: 'light' }
-                                }
-                            ]
+                id: 'arc-layer-demo',
+                label: 'Flight Paths (Arc Layer)',
+                group: 'Deck.gl Demos',
+                deckLayers: [
+                    {
+                        id: 'arc-layer',
+                        type: 'ArcLayer',
+                        props: {
+                            data: [
+                                { source: [-74.0060, 40.7128], target: [-73.9857, 40.7580] }, // NYC to Met Museum
+                                { source: [-74.0100, 40.7200], target: [-73.9776, 40.7614] }, // Point to Guggenheim
+                                { source: [-73.9900, 40.7300], target: [-73.9735, 40.7505] } // Point to MoMA
+                            ],
+                            getSourcePosition: d => d.source,
+                            getTargetPosition: d => d.target,
+                            getSourceColor: [0, 128, 200],
+                            getTargetColor: [200, 0, 80],
+                            getWidth: 3,
+                            pickable: true
                         }
                     }
-                },
-                layers: [
+                ],
+                defaultVisible: false,
+                opacityControls: true
+            },
+            {
+                id: 'heatmap-deck',
+                label: 'Heatmap',
+                group: 'Deck.gl Demos',
+                deckLayers: [
                     {
-                        id: 'traffic-heavy',
-                        type: 'line',
-                        source: 'traffic-source',
-                        filter: ['==', ['get', 'traffic'], 'heavy'],
-                        paint: {
-                            'line-color': '#ff4757',
-                            'line-width': 6,
-                            'line-opacity': 0.8
+                        id: 'heatmap-layer',
+                        type: 'HeatmapLayer',
+                        props: {
+                            data: [
+                                ...sampleRestaurants.features.map(f => ({
+                                    position: f.geometry.coordinates,
+                                    weight: Math.random() * 100
+                                })),
+                                ...sampleMuseums.features.map(f => ({
+                                    position: f.geometry.coordinates,
+                                    weight: Math.random() * 100
+                                }))
+                            ],
+                            getPosition: d => d.position,
+                            getWeight: d => d.weight,
+                            radiusPixels: 100,
+                            intensity: 1,
+                            threshold: 0.03
                         }
-                    },
+                    }
+                ],
+                defaultVisible: false,
+                opacityControls: true
+            },
+            {
+                id: 'traffic-paths',
+                label: 'Traffic Paths',
+                group: 'Deck.gl Path',
+                deckLayers: [
                     {
-                        id: 'traffic-light',
-                        type: 'line',
-                        source: 'traffic-source',
-                        filter: ['==', ['get', 'traffic'], 'light'],
-                        paint: {
-                            'line-color': '#2ed573',
-                            'line-width': 4,
-                            'line-opacity': 0.8
+                        id: 'path-layer',
+                        type: 'PathLayer',
+                        props: {
+                            data: [
+                                {
+                                    path: [
+                                        [-74.0059, 40.7128],
+                                        [-74.0000, 40.7200],
+                                        [-73.9950, 40.7250]
+                                    ],
+                                    color: [255, 71, 87],
+                                    width: 6
+                                },
+                                {
+                                    path: [
+                                        [-73.9900, 40.7300],
+                                        [-73.9850, 40.7350],
+                                        [-73.9800, 40.7400]
+                                    ],
+                                    color: [46, 213, 115],
+                                    width: 4
+                                }
+                            ],
+                            getPath: d => d.path,
+                            getColor: d => d.color,
+                            getWidth: d => d.width,
+                            pickable: true
                         }
                     }
                 ],
@@ -623,13 +541,24 @@
             }
         });
 
-        // Initialize MapLibre map
-        const map = new maplibregl.Map({
+        // Get initial viewport state
+        const initialViewport = LayersControl.getInitialViewport({
+            persist: {
+                localStorageKey: 'layerscontrol-demo'
+            }
+        });
+
+        // Initialize MapLibre map with persisted viewport or defaults
+        const mapOptions = {
             container: 'map',
             style: initialStyle || baseStyles[0].style,
-            center: [-74.0060, 40.7128], // New York City
-            zoom: 11
-        });
+            center: (initialViewport && initialViewport.center) ? initialViewport.center : [-74.0060, 40.7128],
+            zoom: (initialViewport && typeof initialViewport.zoom === 'number') ? initialViewport.zoom : 11,
+            bearing: (initialViewport && typeof initialViewport.bearing === 'number') ? initialViewport.bearing : 0,
+            pitch: (initialViewport && typeof initialViewport.pitch === 'number') ? initialViewport.pitch : 0
+        };
+
+        const map = new maplibregl.Map(mapOptions);
 
         // Create LayersControl instance
         const layersControl = new LayersControl({
@@ -644,9 +573,9 @@
             position: 'top-right',
             i18n: (key) => {
                 const translations = {
-                    'Base Maps': 'Base Maps',
-                    'Overlays': 'Data Layers',
-                    'layers': 'Layer Control'
+                    'Base Maps': 'Camada Base',
+                    'Overlays': 'Camadas de Dados',
+                    'layers': 'Controlo de Camadas'
                 };
                 return translations[key] || key;
             },
@@ -667,25 +596,25 @@
             layersControl.addTo(map);
 
             // Demo: Programmatic interactions
-            setTimeout(() => {
-                console.log('Demo: Programmatically enabling restaurants...');
-                layersControl.toggleOverlay('restaurants', true);
-            }, 3000);
+            // setTimeout(() => {
+            //     console.log('Demo: Programmatically enabling restaurants...');
+            //     layersControl.toggleOverlay('restaurants', true);
+            // }, 3000);
 
-            setTimeout(() => {
-                console.log('Demo: Setting restaurants opacity to 70%...');
-                layersControl.setOverlayOpacity('restaurants', 0.7);
-            }, 5000);
+            // setTimeout(() => {
+            //     console.log('Demo: Setting restaurants opacity to 70%...');
+            //     layersControl.setOverlayOpacity('restaurants', 0.7);
+            // }, 5000);
 
-            setTimeout(() => {
-                console.log('Demo: Switching to satellite base map...');
-                layersControl.setBase('satellite');
-            }, 7000);
+            // setTimeout(() => {
+            //     console.log('Demo: Switching to satellite base map...');
+            //     layersControl.setBase('satellite');
+            // }, 7000);
 
-            setTimeout(() => {
-                console.log('Demo: Enabling Points of Interest group...');
-                layersControl.toggleOverlayGroup('Points of Interest', true);
-            }, 9000);
+            // setTimeout(() => {
+            //     console.log('Demo: Enabling Points of Interest group...');
+            //     layersControl.toggleOverlayGroup('Points of Interest', true);
+            // }, 9000);
         });
 
         // Event listeners for demo
