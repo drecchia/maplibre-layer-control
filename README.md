@@ -1,55 +1,129 @@
-layers-control-refactored.js (~900 LOC total)
+# LayersControl — MapLibre Layer Manager
 
-1. EventEmitter (40 LOC)
-Simple event handling utility for inter-component communication with on(), off(), and emit() methods.
+Compact, modern, and extensible layer control for MapLibre GL JS. Designed for production apps that need:
+- fast, testable code (single-responsibility internals),
+- flexible UX (grouping, opacity, pan-on-add),
+- dynamic data loading (remote layer loader via renderOnClick),
+- optional deck.gl integration for high-performance rendering.
 
-2. StateStore (150 LOC)
-Manages all layer states (currentBaseId, overlayStates, groupStates) and handles localStorage persistence. Emits events when state changes occur.
+[![npm version](https://img.shields.io/badge/npm-v1.0.0-blue)](#) [![license](https://img.shields.io/badge/license-MIT-lightgrey)](#)
 
-3. OverlayManager (350 LOC)
-The only class that touches the MapLibre map object. Handles:
+Why this control?
+- Drop-in replacement for older monolithic layer controls with the same public API and far better maintainability.
+- Keeps map logic and UI separate — safer to extend and test.
+- Built-in persistence so users return to the map exactly as they left it.
 
-Adding/removing sources and layers
-Opacity management for all layer types
-renderOnClick async loading with caching
-Z-order positioning and repositioning
-Base map style switching
-Pan-to-overlay functionality
-Error handling and loading states
+Hero GIFs
+- UI interaction (toggle layers, change opacity)
+  ![demo-ui](docs/gif-ui-placeholder.gif)
 
-4. UIBuilder (200 LOC)
-Manages DOM creation and user interactions:
+- Dynamic remote loader (renderOnClick): loading → success → cached
+  ![demo-dynamic](docs/gif-dynamic-placeholder.gif)
 
-Creates control button and dropdown panel
-Builds base layer radios and overlay checkboxes
-Handles opacity sliders and status indicators
-Processes user clicks and emits events to facade
-Updates UI state based on external changes
+Top features (short)
+- Base map switching (setStyle or toggle background strategy)
+- Overlay grouping and group-level opacity
+- Per-overlay opacity sliders and status indicators (loading / error / retry)
+- panOnAdd: optionally fly to a relevant location when a user enables a layer
+- renderOnClick: async remote layer loader for deferred datasets (cached + retry)
+- State persistence: base, overlays, opacity, layer order, viewport
+- Events and hooks for analytics, telemetry, or custom UI integrations
+- Works with MapLibre; optionally integrates with deck.gl (deck.MapboxOverlay)
 
-5. LayersControl (160 LOC)
-Main facade that coordinates all components:
+Quickstart (minimal)
+```javascript
+// javascript
+const baseStyles = [
+  { id: 'osm', label: 'OpenStreetMap', style: 'https://demotiles.maplibre.org/style.json', strategy: 'setStyle' }
+];
 
-Exposes the same public API as the original
-Wires events between StateStore ↔ UIBuilder ↔ OverlayManager
-Implements MapLibre control interface (onAdd, onRemove)
-Handles initial state application
-LayersControl-Documentation.md
-Comprehensive documentation covering:
+const overlays = [
+  {
+    id: 'poi-restaurants',
+    label: 'Restaurants',
+    group: 'POI',
+    source: { id: 'poi-src', type: 'geojson', options: { data: restaurantsGeojson } },
+    layers: [{ id: 'poi-restaurants-circles', type: 'circle', paint: { 'circle-color': '#ff6600', 'circle-radius': 6 } }],
+    opacityControls: true,
+    defaultVisible: false,
+    panOnAdd: true,
+    panZoom: 14
+  }
+];
 
-Architecture overview and class responsibilities
-Complete public API reference with examples
-Configuration options for bases, overlays, and groups
-Event system documentation
-Migration guide from original monolithic version
-Benefits: maintainability, testability, performance, extensibility
+const layersControl = new LayersControl({
+  baseStyles,
+  overlays,
+  persist: { localStorageKey: 'my-app-layers' },
+  position: 'top-right'
+});
 
-Key Benefits of This Refactor:
-✅ Single Responsibility - Each class has one clear purpose
-✅ Testable - Components can be unit tested in isolation
-✅ Maintainable - Changes to UI don't affect map logic
-✅ Same Public API - Drop-in replacement for existing code
-✅ Better Error Handling - Proper loading states and error recovery
-✅ Memory Safe - Proper cleanup prevents memory leaks
-✅ Extensible - Easy to add new features to the appropriate class
+const map = new maplibregl.Map({
+  container: 'map',
+  style: LayersControl.getInitialStyle({ baseStyles, persist: { localStorageKey: 'my-app-layers' } }) || baseStyles[0].style,
+  center: [-0.1276, 51.5074],
+  zoom: 10
+});
 
-The refactored version maintains full backward compatibility while providing a much cleaner internal architecture for long-term maintenance and feature development.
+map.on('load', () => layersControl.addTo(map));
+```
+
+RenderOnClick — remote layer loader
+- Use `renderOnClick(context)` to lazily fetch data or construct deck.gl layers only when the user requests the overlay.
+- The control provides a useful context object (map, overlayManager, stateStore, helpers like getCurrentViewport()).
+- Successful results are cached, concurrent calls are prevented, and failures emit `error` with UI retry affordance.
+
+Example (renderOnClick snippet)
+```javascript
+// javascript
+const weatherOverlay = {
+  id: 'live-weather',
+  label: 'Live Weather',
+  renderOnClick: async (ctx) => {
+    const vp = ctx.getCurrentViewport();
+    const res = await fetch(`/api/weather?lng=${vp.center[0]}&lat=${vp.center[1]}&z=${Math.round(vp.zoom)}`);
+    if (!res.ok) throw new Error('Failed to fetch weather');
+    const geojson = await res.json();
+    return {
+      source: { id: 'weather-src', type: 'geojson', options: { data: geojson } },
+      layers: [{ id: 'weather-points', type: 'circle', paint: { 'circle-color': '#007cba' } }]
+    };
+  },
+  opacityControls: true,
+  panOnAdd: true
+};
+```
+
+panOnAdd (UX)
+- When `panOnAdd: true` is set on an overlay, user-initiated toggles optionally fly the map to a representative location (overlay.panZoom can tune zoom).
+- Useful for datasets that are local to a city or require focus after enabling.
+
+Grouping & group opacity
+- Assign overlays to groups via `overlay.group`.
+- Groups render as a group header in the UI. Toggling a group toggles each member overlay and, if enabled, applies a single opacity slider for the whole group.
+
+Persistence & layer order
+- State persisted to `persist.localStorageKey` contains:
+  { baseId, overlays, groups, layerOrder, viewport }
+- `layerOrder` is respected on restore so overlays (especially deck layers) retain intended z-order.
+
+Docs & reference
+- docs/QUICKSTART.md — quick examples
+- docs/API_REFERENCE.md — detailed public API & method signatures
+- docs/CONFIGURATION.md — complete options schema and persisted state shape
+- docs/RENDER_ON_CLICK.md — remote loader contract, caching, error handling
+- docs/EVENTS.md — emitted events and payloads
+- docs/CSS.md — class names and styling hooks
+- docs/WORKFLOWS.md — mermaid workflow diagrams
+- docs/MIGRATION.md — migration guidance from older implementations
+- docs/ARCHITECTURE.md — design and component responsibilities
+
+Get started
+- Try the Quickstart and plug LayersControl into your MapLibre app.
+- Replace older controls with the same public methods — modernized internals make future changes safe.
+
+Contribute
+- PRs and issues welcome. Prefer small, focused changes and keep single-responsibility boundaries intact.
+
+License
+- MIT (or see repository LICENSE)
