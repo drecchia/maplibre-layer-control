@@ -63,7 +63,7 @@ class StateStore extends EventEmitter {
         this.options.overlays.forEach(overlay => {
             this.overlayStates[overlay.id] = {
                 visible: overlay.defaultVisible || false,
-                opacity: 1.0
+                opacity: overlay.defaultOpacity || 1.0
             };
 
             if (overlay.group && !this.groupStates[overlay.group]) {
@@ -423,7 +423,28 @@ class OverlayManager extends EventEmitter {
                 this.emit('loading', { id: overlayId });
 
                 try {
-                    const result = await overlay.renderOnClick();
+                    // Create context object with useful references for data manipulation
+                    const context = {
+                        map: this.map,
+                        overlayManager: this,
+                        stateStore: this.stateStore,
+                        overlayId: overlayId,
+                        overlay: overlay,
+                        isUserInteraction: isUserInteraction,
+                        deckOverlay: this.deckOverlay,
+                        // Helper methods
+                        getCurrentViewport: () => ({
+                            center: [this.map.getCenter().lng, this.map.getCenter().lat],
+                            zoom: this.map.getZoom(),
+                            bearing: this.map.getBearing(),
+                            pitch: this.map.getPitch()
+                        }),
+                        // Access to other overlay states
+                        getOverlayState: (id) => this.stateStore?.overlayStates?.[id],
+                        getAllOverlayStates: () => this.stateStore?.overlayStates || {}
+                    };
+                    
+                    const result = await overlay.renderOnClick(context);
                     if (!result || !result.deckLayers) {
                         throw new Error('renderOnClick must return {deckLayers}');
                     }
@@ -512,6 +533,24 @@ class OverlayManager extends EventEmitter {
         // Apply opacity to deck.gl layers
         if (overlay.deckLayers) {
             this.applyDeckOpacity(overlayId, opacity);
+        }
+
+        // Also apply opacity to renderOnClick cached layers
+        if (overlay.renderOnClick && this.renderOnClickCache.has(overlayId)) {
+            const cachedResult = this.renderOnClickCache.get(overlayId);
+            if (cachedResult?.deckLayers) {
+                cachedResult.deckLayers.forEach(deckLayerDef => {
+                    const layer = this.deckLayers.get(deckLayerDef.id);
+                    if (layer) {
+                        // Update the layer with new opacity
+                        const updatedLayer = layer.clone({
+                            opacity: opacity
+                        });
+                        this.deckLayers.set(deckLayerDef.id, updatedLayer);
+                    }
+                });
+                this._updateDeckLayers();
+            }
         }
     }
 

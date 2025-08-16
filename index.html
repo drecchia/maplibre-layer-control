@@ -365,6 +365,30 @@
                     ]
                 },
                 strategy: 'setStyle'
+            },{
+                id: 'waze-streets',
+                label: 'Waze Streets',
+                strategy: 'setStyle',
+                style: {
+                    version: 8,
+                    sources: {
+                        'raster-tiles-waze': {
+                            type: 'raster',
+                            tiles: [
+                                'https://worldtiles1.waze.com/tiles/{z}/{x}/{y}.png',
+                                'https://worldtiles2.waze.com/tiles/{z}/{x}/{y}.png',
+                                'https://worldtiles3.waze.com/tiles/{z}/{x}/{y}.png',
+                                'https://worldtiles4.waze.com/tiles/{z}/{x}/{y}.png',
+                            ],
+                            tileSize: 256
+                        }
+                    },
+                    layers: [{
+                        id: 'simple-tiles-waze',
+                        type: 'raster',
+                        source: 'raster-tiles-waze',
+                    }]
+                }
             }
         ];
 
@@ -529,6 +553,47 @@
                 ],
                 defaultVisible: false,
                 opacityControls: true
+            },{
+                id: 'weather-radar',
+                label: 'Weather Radar (Dynamic)',
+                group: 'Weather',
+                defaultOpacity: 0.8, // Set initial opacity to match the layer default
+                renderOnClick: async (context) => {
+                    console.log('Loading weather radar data...');
+                    
+                    // Simulate API call delay
+                    return new Promise(resolve => {
+                        setTimeout(() => {
+                            console.log('Weather radar data loaded successfully');
+                            
+                            // Example: Adjust data based on current viewport
+                            const viewport = context.getCurrentViewport();
+                            const dynamicOpacity = viewport.zoom > 8 ? 0.8 : 0.6;
+                            
+                            resolve({
+                                deckLayers: [
+                                    {
+                                        id: 'radar-bitmap-layer',
+                                        type: 'BitmapLayer',
+                                        props: {
+                                            image: 'https://docs.mapbox.com/mapbox-gl-js/assets/radar.gif',
+                                            bounds: [
+                                                -80.425, 37.936,  // [west, south]
+                                                -71.516, 46.437   // [east, north]
+                                            ],
+                                            opacity: dynamicOpacity, // Dynamic opacity based on zoom level
+                                            pickable: false
+                                        }
+                                    }
+                                ]
+                            });
+                        }, 1500);
+                    });
+                },
+                defaultVisible: false,
+                opacityControls: true,
+                panOnAdd: true,
+                panZoom: 10
             }
         ];
 
@@ -559,6 +624,37 @@
         };
 
         const map = new maplibregl.Map(mapOptions);
+
+        /*
+         * renderOnClick Context Documentation
+         * 
+         * When using renderOnClick for dynamic overlays, a context object is passed
+         * with the following properties and methods:
+         * 
+         * - context.map: MapLibre GL JS map instance for direct map manipulation
+         * - context.overlayManager: OverlayManager instance for layer operations
+         * - context.stateStore: StateStore instance for accessing/modifying layer states
+         * - context.overlayId: ID of the current overlay being rendered
+         * - context.overlay: Full overlay configuration object
+         * - context.isUserInteraction: Boolean indicating if triggered by user interaction
+         * - context.deckOverlay: Deck.gl overlay instance for advanced operations
+         * 
+         * Helper Methods:
+         * - context.getCurrentViewport(): Returns current map viewport {center, zoom, bearing, pitch}
+         * - context.getOverlayState(id): Returns state of specific overlay {visible, opacity}
+         * - context.getAllOverlayStates(): Returns all overlay states as object
+         * 
+         * Example usage:
+         * renderOnClick: async (context) => {
+         *     const viewport = context.getCurrentViewport();
+         *     const bounds = context.map.getBounds();
+         *     const visibleOverlays = Object.entries(context.getAllOverlayStates())
+         *         .filter(([id, state]) => state.visible);
+         *     
+         *     // Use data to customize layer creation...
+         *     return { deckLayers: [...] };
+         * }
+         */
 
         // Create LayersControl instance
         const layersControl = new LayersControl({
