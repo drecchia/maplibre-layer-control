@@ -307,9 +307,16 @@ class OverlayManager extends EventEmitter {
                     type: overlay.source.type,
                     ...overlay.source.options
                 });
+
+                // Clear loading state immediately for non-data sources
+                if (overlay.source.type !== 'geojson' && overlay.source.type !== 'vector' && overlay.source.type !== 'raster') {
+                    this.loadingOverlays.delete(overlay.source.id);
+                    this.emit('success', { id: overlayId });
+                }
             } catch (error) {
                 console.error('Failed to add source:', overlay.source.id, error);
                 this.errorOverlays.add(overlay.source.id);
+                this.loadingOverlays.delete(overlay.source.id);
                 return false;
             }
         }
@@ -347,6 +354,12 @@ class OverlayManager extends EventEmitter {
             setTimeout(() => {
                 this._panToOverlay(overlay);
             }, 100);
+        }
+
+        // Clear loading state if no source was added or if all layers were added successfully
+        if (!overlay.source || this.map.getSource(overlay.source.id)) {
+            this.loadingOverlays.delete(overlay.source?.id);
+            this.emit('success', { id: overlayId });
         }
 
         return true;
