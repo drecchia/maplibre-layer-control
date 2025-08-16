@@ -133,7 +133,7 @@ class StateStore extends EventEmitter {
                 // Restore layer order
                 if (persistedState.layerOrder && Array.isArray(persistedState.layerOrder)) {
                     // Filter out any layer IDs that no longer exist
-                    this.layerOrder = persistedState.layerOrder.filter(layerId => 
+                    this.layerOrder = persistedState.layerOrder.filter(layerId =>
                         this.overlayStates[layerId]
                     );
                 }
@@ -167,10 +167,16 @@ class StateStore extends EventEmitter {
     getState() {
         return {
             baseId: this.currentBaseId,
-            overlays: { ...this.overlayStates },
-            groups: { ...this.groupStates },
+            overlays: {
+                ...this.overlayStates
+            },
+            groups: {
+                ...this.groupStates
+            },
             layerOrder: [...this.layerOrder], // Include layer order in state
-            viewport: { ...this.viewportState }
+            viewport: {
+                ...this.viewportState
+            }
         };
     }
 
@@ -187,7 +193,9 @@ class StateStore extends EventEmitter {
     }
 
     setOverlay(overlayId, state) {
-        const previousState = { ...this.overlayStates[overlayId] };
+        const previousState = {
+            ...this.overlayStates[overlayId]
+        };
         Object.assign(this.overlayStates[overlayId], state);
 
         // Track layer order when visibility changes
@@ -220,25 +228,29 @@ class StateStore extends EventEmitter {
         const groupOverlays = this.options.overlays.filter(o => o.group === groupId);
         this.emit('overlaygroupchange', {
             groupId,
-            visible: state.visible,
-            opacity: state.opacity,
+            visible: this.groupStates[groupId].visible,
+            opacity: this.groupStates[groupId].opacity,
             overlays: groupOverlays.map(o => o.id)
         });
         this.emit('change', this.getState());
     }
 
     setViewport(viewport) {
-        const previousState = { ...this.viewportState };
-        
+        const previousState = {
+            ...this.viewportState
+        };
+
         if (viewport.center !== undefined) this.viewportState.center = viewport.center;
         if (viewport.zoom !== undefined) this.viewportState.zoom = viewport.zoom;
         if (viewport.bearing !== undefined) this.viewportState.bearing = viewport.bearing;
         if (viewport.pitch !== undefined) this.viewportState.pitch = viewport.pitch;
-        
+
         this._persistState();
 
         this.emit('viewportchange', {
-            viewport: { ...this.viewportState },
+            viewport: {
+                ...this.viewportState
+            },
             previousViewport: previousState
         });
         this.emit('change', this.getState());
@@ -329,7 +341,9 @@ class OverlayManager extends EventEmitter {
                 layers: [],
                 pickingRadius: 5,
                 controller: false,
-                getTooltip: ({object}) => object && {
+                getTooltip: ({
+                    object
+                }) => object && {
                     html: `<div><strong>${object.name || object.id || 'Feature'}</strong></div>`,
                     style: {
                         backgroundColor: 'rgba(0, 0, 0, 0.8)',
@@ -340,7 +354,7 @@ class OverlayManager extends EventEmitter {
                     }
                 }
             });
-            
+
             this.map.addControl(this.deckOverlay);
 
             console.log('Deck.gl initialized successfully');
@@ -420,7 +434,9 @@ class OverlayManager extends EventEmitter {
 
                 this.renderOnClickErrors.delete(overlayId);
                 this.renderOnClickLoading.add(overlayId);
-                this.emit('loading', { id: overlayId });
+                this.emit('loading', {
+                    id: overlayId
+                });
 
                 try {
                     // Create context object with useful references for data manipulation
@@ -443,7 +459,7 @@ class OverlayManager extends EventEmitter {
                         getOverlayState: (id) => this.stateStore?.overlayStates?.[id],
                         getAllOverlayStates: () => this.stateStore?.overlayStates || {}
                     };
-                    
+
                     const result = await overlay.renderOnClick(context);
                     if (!result || !result.deckLayers) {
                         throw new Error('renderOnClick must return {deckLayers}');
@@ -451,7 +467,9 @@ class OverlayManager extends EventEmitter {
 
                     this.renderOnClickCache.set(overlayId, result);
                     this.renderOnClickLoading.delete(overlayId);
-                    this.emit('success', { id: overlayId });
+                    this.emit('success', {
+                        id: overlayId
+                    });
                 } catch (error) {
                     console.error(`renderOnClick failed for overlay ${overlayId}:`, error);
                     this.renderOnClickLoading.delete(overlayId);
@@ -466,7 +484,10 @@ class OverlayManager extends EventEmitter {
 
             const cachedResult = this.renderOnClickCache.get(overlayId);
             if (cachedResult) {
-                overlay = { ...overlay, deckLayers: cachedResult.deckLayers };
+                overlay = {
+                    ...overlay,
+                    deckLayers: cachedResult.deckLayers
+                };
             }
         }
 
@@ -480,7 +501,9 @@ class OverlayManager extends EventEmitter {
                     }
                 });
                 this._updateDeckLayers();
-                this.emit('success', { id: overlayId });
+                this.emit('success', {
+                    id: overlayId
+                });
             } catch (error) {
                 console.error('Failed to add deck.gl layers:', error);
                 this.errorOverlays.add(overlayId);
@@ -691,12 +714,12 @@ class OverlayManager extends EventEmitter {
         if (!this.deckOverlay) return;
 
         let layers;
-        
+
         if (this.stateStore) {
             // Respect the layer order from state store
             const layerOrder = this.stateStore.getLayerOrder();
             layers = [];
-            
+
             // Add layers in the order they appear in layerOrder
             layerOrder.forEach(overlayId => {
                 const overlay = this.options.overlays.find(o => o.id === overlayId);
@@ -709,7 +732,7 @@ class OverlayManager extends EventEmitter {
                     });
                 }
             });
-            
+
             // Add any remaining layers that aren't in the order (fallback)
             this.deckLayers.forEach((layer, layerId) => {
                 if (!layers.includes(layer)) {
@@ -720,8 +743,10 @@ class OverlayManager extends EventEmitter {
             // Fallback to original behavior if no state store
             layers = Array.from(this.deckLayers.values());
         }
-        
-        this.deckOverlay.setProps({ layers });
+
+        this.deckOverlay.setProps({
+            layers
+        });
     }
 
     applyDeckOpacity(overlayId, opacity) {
@@ -805,7 +830,9 @@ class UIBuilder extends EventEmitter {
                         statusEl.title = 'Click to retry';
                         statusEl.style.display = 'inline-block';
                         statusEl.onclick = () => {
-                            this.emit('retryoverlay', { id });
+                            this.emit('retryoverlay', {
+                                id
+                            });
                         };
                         break;
                     case 'success':
@@ -839,8 +866,10 @@ class UIBuilder extends EventEmitter {
         slider.className = 'opacity-slider';
 
         // Prevent slider interactions from toggling the checkbox
-        const stop = (e) => { e.stopPropagation(); };
-        ['click','mousedown','pointerdown','touchstart','dblclick','keydown'].forEach(evt => {
+        const stop = (e) => {
+            e.stopPropagation();
+        };
+        ['click', 'mousedown', 'pointerdown', 'touchstart', 'dblclick', 'keydown'].forEach(evt => {
             slider.addEventListener(evt, stop);
             container.addEventListener(evt, stop);
         });
@@ -849,7 +878,7 @@ class UIBuilder extends EventEmitter {
         slider.addEventListener('input', () => {
             // Update label immediately for responsive UI feedback
             label.textContent = Math.round(parseFloat(slider.value) * 100) + '%';
-            
+
             clearTimeout(timeout);
             timeout = setTimeout(() => {
                 this.emit('opacitychange', {
@@ -954,7 +983,9 @@ class UIBuilder extends EventEmitter {
         radio.value = baseStyle.id;
         radio.addEventListener('change', () => {
             if (radio.checked) {
-                this.emit('basechange', { id: baseStyle.id });
+                this.emit('basechange', {
+                    id: baseStyle.id
+                });
                 if (this.options.autoClose) {
                     this._closePanel();
                 }
@@ -1000,7 +1031,9 @@ class UIBuilder extends EventEmitter {
     }
 
     _groupOverlaysByAttribute() {
-        const grouped = { ungrouped: [] };
+        const grouped = {
+            ungrouped: []
+        };
 
         this.options.overlays.forEach(overlay => {
             const groupId = overlay.group || 'ungrouped';
@@ -1022,15 +1055,20 @@ class UIBuilder extends EventEmitter {
         labelContainer.style.alignItems = 'center';
         labelContainer.style.width = '100%';
 
-        const label = document.createElement('label');
-        label.className = 'overlay-label';
-        label.style.display = 'flex';
-        label.style.alignItems = 'center';
-        label.style.flex = '1';
+        const hasOpacityControls = overlays.some(o => o.opacityControls);
+
+        // Only use label element if we don't have opacity controls
+        // This prevents label click behavior from interfering with the slider
+        const labelOrDiv = document.createElement(hasOpacityControls && this.options.showOpacity ? 'div' : 'label');
+        labelOrDiv.className = 'overlay-label';
+        labelOrDiv.style.display = 'flex';
+        labelOrDiv.style.alignItems = 'center';
+        labelOrDiv.style.flex = '1';
 
         const input = document.createElement('input');
         input.type = 'checkbox';
         input.value = groupId;
+        input.id = `group-checkbox-${groupId}`;
         input.addEventListener('change', () => {
             this.emit('groupchange', {
                 id: groupId,
@@ -1042,20 +1080,24 @@ class UIBuilder extends EventEmitter {
             }
         });
 
-        const labelText = document.createElement('span');
+        const labelText = document.createElement(hasOpacityControls && this.options.showOpacity ? 'label' : 'span');
         labelText.textContent = groupId;
+        if (hasOpacityControls && this.options.showOpacity) {
+            labelText.setAttribute('for', `group-checkbox-${groupId}`);
+            labelText.style.cursor = 'pointer';
+            labelText.style.flex = '1';
+        }
 
-        label.appendChild(input);
-        label.appendChild(labelText);
+        labelOrDiv.appendChild(input);
+        labelOrDiv.appendChild(labelText);
 
         const status = document.createElement('div');
         status.className = 'overlay-status';
 
-        labelContainer.appendChild(label);
+        labelContainer.appendChild(labelOrDiv);
         labelContainer.appendChild(status);
         item.appendChild(labelContainer);
 
-        const hasOpacityControls = overlays.some(o => o.opacityControls);
         if (hasOpacityControls && this.options.showOpacity) {
             // Get initial opacity from state store
             const initialOpacity = this.stateStore?.groupStates[groupId]?.opacity || 1.0;
@@ -1174,7 +1216,7 @@ class LayersControl extends EventEmitter {
         // Initialize sub-components
         this.state = new StateStore(this.options);
         this.overlayManager = new OverlayManager(this.options, this.state);
-    this.ui = new UIBuilder(this.options, this.state);
+        this.ui = new UIBuilder(this.options, this.state);
 
         // Wire up events between components
         this._wireEvents();
@@ -1337,7 +1379,9 @@ class LayersControl extends EventEmitter {
             this.overlayManager.hide(overlayId);
         }
 
-        this.state.setOverlay(overlayId, { visible: newVisible });
+        this.state.setOverlay(overlayId, {
+            visible: newVisible
+        });
     }
 
     /**
@@ -1356,7 +1400,9 @@ class LayersControl extends EventEmitter {
         }
 
         this.overlayManager.applyOpacity(overlayId, opacity);
-        this.state.setOverlay(overlayId, { opacity });
+        this.state.setOverlay(overlayId, {
+            opacity
+        });
         this.ui.updateOpacitySlider(overlayId, opacity);
     }
 
@@ -1393,10 +1439,14 @@ class LayersControl extends EventEmitter {
             } else {
                 this.overlayManager.hide(overlay.id);
             }
-            this.state.setOverlay(overlay.id, { visible: newVisible });
+            this.state.setOverlay(overlay.id, {
+                visible: newVisible
+            });
         }
 
-        this.state.setGroup(groupId, { visible: newVisible });
+        this.state.setGroup(groupId, {
+            visible: newVisible
+        });
     }
 
     /**
@@ -1416,10 +1466,14 @@ class LayersControl extends EventEmitter {
 
         groupOverlays.forEach(overlay => {
             this.overlayManager.applyOpacity(overlay.id, opacity);
-            this.state.setOverlay(overlay.id, { opacity });
+            this.state.setOverlay(overlay.id, {
+                opacity
+            });
         });
 
-        this.state.setGroup(groupId, { opacity });
+        this.state.setGroup(groupId, {
+            opacity
+        });
     }
 
     /**
@@ -1450,7 +1504,9 @@ class LayersControl extends EventEmitter {
 
         if (overlay.defaultVisible) {
             this.overlayManager.show(overlay.id);
-            this.state.setOverlay(overlay.id, { visible: true });
+            this.state.setOverlay(overlay.id, {
+                visible: true
+            });
         }
     }
 
@@ -1570,9 +1626,9 @@ class LayersControl extends EventEmitter {
         if (state.viewport) {
             const currentCenter = this.map.getCenter();
             const currentZoom = this.map.getZoom();
-            
+
             const viewportOptions = {};
-            
+
             // Only apply persisted values if they exist
             if (state.viewport.center && Array.isArray(state.viewport.center)) {
                 viewportOptions.center = state.viewport.center;
@@ -1601,7 +1657,7 @@ class LayersControl extends EventEmitter {
 
         // Apply overlay states in the correct order
         const layerOrder = this.state.getLayerOrder();
-        
+
         // First, apply overlays in their persisted order
         layerOrder.forEach(overlayId => {
             const overlayState = state.overlays[overlayId];
@@ -1617,7 +1673,7 @@ class LayersControl extends EventEmitter {
                 this.ui.updateOpacitySlider(overlayId, overlayState.opacity || 1.0);
             }
         });
-        
+
         // Then, apply any remaining overlays that weren't in the layer order
         Object.entries(state.overlays).forEach(([overlayId, overlayState]) => {
             if (!layerOrder.includes(overlayId)) {
