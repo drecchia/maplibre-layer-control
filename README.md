@@ -15,10 +15,10 @@ Why this control?
 
 Hero GIFs
 - UI interaction (toggle layers, change opacity)
-  ![demo-ui](docs/gif-ui-placeholder.gif)
+  ![demo-ui](docs/img01.gif)
 
 - Dynamic remote loader (renderOnClick): loading → success → cached
-  ![demo-dynamic](docs/gif-dynamic-placeholder.gif)
+  ![demo-dynamic](docs/img02.gif)
 
 Top features (short)
 - Base map switching (setStyle or toggle background strategy)
