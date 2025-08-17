@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LayersControl - New Features Test</title>
+    
+    <!-- MapLibre GL CSS -->
+    <link href="https://unpkg.com/maplibre-gl@4.1.1/dist/maplibre-gl.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/deck.gl@9.1.14/dist/stylesheet.min.css">
+    <link href="./src/css/main.css" rel="stylesheet">
+    
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+        }
+        #map {
+            height: 100vh;
+            width: 100%;
+        }
+        .test-info {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            max-width: 300px;
+            z-index: 1000;
+        }
+        .test-info h3 {
+            margin: 0 0 10px 0;
+            color: #333;
+        }
+        .test-info ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+        .test-info li {
+            margin-bottom: 5px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    
+    <div class="test-info">
+        <h3>🧪 New Features Test</h3>
+        <ul>
+            <li><strong>Zoom Constraints:</strong> Enable "High Zoom" and zoom to 15+ to see it</li>
+            <li><strong>Zoom Filtering:</strong> Look for 👁‍🗨 icon when layers are filtered</li>
+            <li><strong>Forced Base:</strong> Enable "Force Satellite" to auto-switch to satellite</li>
+            <li><strong>Forced Viewport:</strong> Notice bearing/pitch changes with "Force Satellite"</li>
+            <li><strong>Combined with panOnAdd:</strong> Forced changes happen first, then pan</li>
+            <li><strong>HTML Tooltips:</strong> Hover over points to see rich tooltips</li>
+        </ul>
+    </div>
+
+    <!-- MapLibre GL JS -->
+    <script src="https://unpkg.com/maplibre-gl@4.1.1/dist/maplibre-gl.js"></script>
+    
+    <!-- Deck.gl CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/deck.gl@9.1.14/dist.min.js" integrity="sha256-BZs9dCF93d5VJUgojI/H2++LbrcE6UXIPnZ2mC4PCAM=" crossorigin="anonymous"></script>
+    
+    <!-- LayersControl Component -->
+    <script src="src/js/main.js"></script>
+
+    <script>
+        // Configuration
+        const baseStyles = [
+            {
+                id: 'osm-liberty',
+                label: 'OSM Liberty',
+                style: 'https://demotiles.maplibre.org/style.json',
+                strategy: 'setStyle'
+            },
+            {
+                id: 'satellite',
+                label: 'Satellite',
+                style: {
+                    version: 8,
+                    sources: {
+                        'satellite': {
+                            type: 'raster',
+                            tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
+                            tileSize: 256,
+                            attribution: '© Esri'
+                        }
+                    },
+                    layers: [
+                        {
+                            id: 'satellite-layer',
+                            type: 'raster',
+                            source: 'satellite'
+                        }
+                    ]
+                },
+                strategy: 'setStyle'
+            }
+        ];
+
+        const overlays = [
+            {
+                id: 'high-zoom-only',
+                label: 'High Zoom Only (13+)',
+                deckLayers: [
+                    {
+                        id: 'high-zoom-circles',
+                        type: 'ScatterplotLayer',
+                        props: {
+                            data: [
+                                { 
+                                    position: [-73.9857, 40.7580], 
+                                    name: 'High Zoom Point',
+                                    type: 'Important Location',
+                                    population: 125000,
+                                    established: 1895
+                                }
+                            ],
+                            getPosition: d => d.position,
+                            getRadius: 50,
+                            getFillColor: [255, 165, 0],
+                            getLineColor: [255, 255, 255],
+                            lineWidthMinPixels: 2,
+                            pickable: true
+                        }
+                    }
+                ],
+                // Simple tooltip configuration  
+                tooltip: {
+                    title: 'name',
+                    fields: [
+                        { label: 'Type', property: 'type' },
+                        { label: 'Population', property: 'population' },
+                        { label: 'Established', property: 'established' }
+                    ]
+                },
+                panOnAdd: true,
+                panZoom: 13,
+                minZoomLevel: 13, // Only visible at zoom 13+
+                defaultVisible: false,
+                opacityControls: true
+            },
+            {
+                id: 'mid-zoom-only',
+                label: 'Mid Zoom Only (8-13)',
+                deckLayers: [
+                    {
+                        id: 'mid-zoom-circles',
+                        type: 'ScatterplotLayer',
+                        props: {
+                            data: [
+                                { 
+                                    position: [-73.9776, 40.7614], 
+                                    name: 'Mid Zoom Point',
+                                    district: 'Manhattan',
+                                    temperature: 72,
+                                    humidity: 65
+                                }
+                            ],
+                            getPosition: d => d.position,
+                            getRadius: 40,
+                            getFillColor: [0, 150, 255],
+                            getLineColor: [255, 255, 255],
+                            lineWidthMinPixels: 2,
+                            pickable: true
+                        }
+                    }
+                ],
+                // Custom tooltip function for advanced formatting
+                getTooltip: (object, info) => {
+                    return {
+                        html: `
+                            <div class="tooltip-content">
+                                <div class="tooltip-title">🌡️ ${object.name}</div>
+                                <div class="tooltip-body">
+                                    <div class="tooltip-field"><strong>District:</strong> ${object.district}</div>
+                                    <div class="tooltip-field"><strong>Temperature:</strong> ${object.temperature}°F</div>
+                                    <div class="tooltip-field"><strong>Humidity:</strong> ${object.humidity}%</div>
+                                    <div style="margin-top: 8px; font-size: 10px; color: #ccc;">
+                                        Click for more details
+                                    </div>
+                                </div>
+                            </div>
+                        `,
+                        style: {
+                            backgroundColor: 'rgba(0, 100, 200, 0.9)',
+                            color: 'white',
+                            padding: '10px',
+                            borderRadius: '6px',
+                            fontSize: '12px',
+                            maxWidth: '250px',
+                            border: '2px solid #0066cc'
+                        }
+                    };
+                },
+                panOnAdd: true,
+                panZoom: 10,
+                minZoomLevel: 8,
+                maxZoomLevel: 13, // Only visible between zoom 8-13
+                defaultVisible: false,
+                opacityControls: true
+            },
+            {
+                id: 'force-satellite-demo',
+                label: 'Force Satellite + Tilt',
+                deckLayers: [
+                    {
+                        id: 'forced-demo-point',
+                        type: 'ScatterplotLayer',
+                        props: {
+                            data: [
+                                { 
+                                    position: [-73.9735, 40.7505], 
+                                    name: 'Satellite Demo Point',
+                                    coordinates: '40.7505°N, 73.9735°W',
+                                    elevation: 45,
+                                    visibility: 'Clear'
+                                }
+                            ],
+                            getPosition: d => d.position,
+                            getRadius: 80,
+                            getFillColor: [255, 0, 255],
+                            getLineColor: [255, 255, 255],
+                            lineWidthMinPixels: 3,
+                            pickable: true
+                        }
+                    }
+                ],
+                // Simple string tooltip (just shows the name property)
+                tooltip: 'name',
+                forcedBaseLayerId: 'satellite', // Force satellite base
+                forcedBearing: 30, // Force 30-degree rotation
+                forcedPitch: 50, // Force 50-degree tilt
+                defaultVisible: false,
+                opacityControls: true,
+                panOnAdd: true, // This will work after forced viewport changes
+                panZoom: 16
+            }
+        ];
+
+        // Get initial style to prevent flicker
+        const initialStyle = LayersControl.getInitialStyle({
+            baseStyles: baseStyles,
+            defaultBaseId: 'osm-liberty',
+            persist: {
+                localStorageKey: 'layerscontrol-new-features-test'
+            }
+        });
+
+        // Initialize MapLibre map
+        const map = new maplibregl.Map({
+            container: 'map',
+            style: initialStyle || baseStyles[0].style,
+            center: [-73.9857, 40.7580], // NYC
+            zoom: 10,
+            bearing: 0,
+            pitch: 0
+        });
+
+        // Create LayersControl
+        const layersControl = new LayersControl({
+            baseStyles: baseStyles,
+            overlays: overlays,
+            defaultBaseId: 'osm-liberty',
+            showOpacity: true,
+            persist: {
+                localStorageKey: 'layerscontrol-new-features-test'
+            }
+        });
+
+        // Add to map
+        map.addControl(layersControl, 'top-left');
+
+        // Log events for testing
+        layersControl.on('basechange', (data) => {
+            console.log('Base changed:', data);
+        });
+
+        layersControl.on('overlaychange', (data) => {
+            console.log('Overlay changed:', data);
+        });
+
+        layersControl.on('viewportchange', (data) => {
+            console.log('Viewport changed:', data);
+        });
+
+        layersControl.on('zoomfilter', (data) => {
+            console.log('Zoom filter changed:', data);
+        });
+
+        layersControl.on('memorycleared', (data) => {
+            console.log('Memory cleared:', data);
+            alert('LayersControl memory cleared! Reload page to see reset state.');
+        });
+
+        // Display current zoom level for testing
+        map.on('zoomend', () => {
+            console.log('Current zoom:', map.getZoom().toFixed(2));
+        });
+
+        // Add test buttons
+        const testControls = document.createElement('div');
+        testControls.style.position = 'fixed';
+        testControls.style.top = '10px';
+        testControls.style.right = '10px';
+        testControls.style.zIndex = '1000';
+        testControls.style.backgroundColor = 'white';
+        testControls.style.padding = '10px';
+        testControls.style.borderRadius = '5px';
+        testControls.style.boxShadow = '0 2px 4px rgba(0,0,0,0.3)';
+        testControls.innerHTML = `
+            <div style="margin-bottom: 10px; font-weight: bold;">Test Controls</div>
+            <button onclick="testClearMemory()" style="margin: 2px; padding: 5px 10px;">Clear Memory</button>
+            <button onclick="testShowState()" style="margin: 2px; padding: 5px 10px;">Show State</button>
+            <button onclick="testHideOverlay()" style="margin: 2px; padding: 5px 10px;">Hide Overlay (Keep in List)</button>
+            <button onclick="testRemoveOverlay()" style="margin: 2px; padding: 5px 10px;">Remove Overlay (Delete)</button>
+            <button onclick="testRemoveAllOverlays()" style="margin: 2px; padding: 5px 10px;">Remove All Overlays</button>
+        `;
+        document.body.appendChild(testControls);
+
+        // Test functions
+        window.testClearMemory = function() {
+            const result = layersControl.state.clearMemory();
+            console.log('Clear memory result:', result);
+        };
+
+        window.testShowState = function() {
+            const layerOrder = layersControl.state.getLayerOrder();
+            console.log('Current layer order:', layerOrder);
+            alert(`Layer order: ${JSON.stringify(layerOrder, null, 2)}`);
+        };
+
+        window.testHideOverlay = function() {
+            // This will hide the overlay but keep it in the overlay list (UI control remains)
+            layersControl.hideOverlay('force-satellite-demo');
+            console.log('Hidden overlay (UI control remains, can be toggled back on)');
+        };
+
+        window.testRemoveOverlay = function() {
+            // This will permanently remove: hide overlay, remove from DeckGL, remove UI control
+            layersControl.removeOverlay('mid-zoom-only');
+            console.log('Permanently removed overlay (overlay deleted, UI control gone)');
+        };
+
+        window.testRemoveAllOverlays = function() {
+            // This will permanently remove all overlays: hide all visible overlays, remove from DeckGL, remove all UI controls
+            layersControl.removeAllOverlays();
+            console.log('Permanently removed ALL overlays (all overlays deleted, all UI controls gone)');
+        };
+    </script>
+</body>
+</html>

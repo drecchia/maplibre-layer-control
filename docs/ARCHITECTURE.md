@@ -1,82 +1,57 @@
-# Architecture — LayersControl (refactor)
+# Architecture — LayersControl
 
-Concise description of the internal architecture, responsibilities and lifecycle for the refactored LayersControl.
+This document describes the internal architecture and lifecycle of LayersControl, strictly based on the implementation in `src/js/main.js`. All information is derived from the actual source code; outdated or speculative features are omitted.
 
-## High-level components
+---
 
-- EventEmitter
-  - Lightweight pub/sub used across components for decoupling.
+## 1. Component Overview
 
-- StateStore
-  - Source of truth for UI and overlay states.
-  - Tracks: currentBaseId, overlayStates, groupStates, layerOrder, viewport.
-  - Persists state to localStorage when configured; validates restored entries and skips missing items.
+- **EventEmitter**: Lightweight event system. Base for all main classes, enabling event-driven updates and decoupling.
+- **StateStore**: Central state manager for base style, overlays, groups, layer order, and viewport. Handles persistence (localStorage), state validation, and emits events on changes.
+- **OverlayManager**: Manages all interactions with the MapLibre map and deck.gl overlays. Handles adding/removing overlays, deck.gl layer instances, zoom filtering, forced base/viewport, and emits loading/error/status events.
+- **UIBuilder**: Creates and manages the DOM for the control button and panel. Emits UI events (basechange, overlaychange, groupchange, opacitychange, retryoverlay) and updates UI elements in response to state and overlay events.
+- **LayersControl (facade)**: Wires all components together. Implements the MapLibre control interface (`onAdd`, `onRemove`). Exposes the public API, manages lifecycle, and coordinates state, overlays, and UI.
 
-- OverlayManager
-  - Sole component that interacts with the MapLibre map object.
-  - Responsibilities:
-    - Add/remove sources and MapLibre layers or deck.gl layers.
-    - Manage deck.MapboxOverlay lifecycle and deck layer instances.
-    - Track loading/error states for renderOnClick overlays.
-    - Apply opacity (via cloning deck layers or updating MapLibre paint props).
-    - Reposition layers to respect label layers (getOverlayBeforeId).
-    - Emit events: loading, success, error, styleload, sourceloaded.
+---
 
-- UIBuilder
-  - Creates and maintains DOM for the control button and panel.
-  - Emits UI events (basechange, overlaychange, groupchange, opacitychange, retryoverlay).
-  - Updates element state (checkboxes, radios, sliders, status icons) when StateStore or OverlayManager emits changes.
+## 2. Responsibilities and Interactions
 
-- LayersControl (facade)
-  - Wires components together.
-  - Exposes public API used by consumers.
-  - Implements MapLibre control interface (onAdd / onRemove).
-  - Applies persisted initial state and sets up viewport persistence listeners.
+- **EventEmitter**: Provides event subscription, emission, and removal for all main classes.
+- **StateStore**: Tracks all state, persists/restores from localStorage, validates IDs, and emits events for base, overlay, group, and viewport changes.
+- **OverlayManager**: Receives state and options, manages overlays on the map, handles deck.gl integration, zoom filtering, forced base/viewport, and emits events for UI feedback.
+- **UIBuilder**: Builds the UI, emits user interaction events, and updates UI elements in response to state and overlay events.
+- **LayersControl**: Connects all components, wires events, applies initial state, and exposes the API.
 
-## Dataflow / lifecycle
+---
 
-1. Construction
-   - LayersControl creates StateStore, OverlayManager, UIBuilder and calls _wireEvents().
+## 3. Dataflow and Lifecycle
 
-2. Adding to map
-   - addTo(map) / onAdd(map) attaches OverlayManager.map, initializes deck overlay (if deck available), builds UI (`ui.build()`), and calls _applyInitialState().
+1. **Construction**: LayersControl creates StateStore, OverlayManager, UIBuilder, and wires events.
+2. **Adding to Map**: `addTo(map)` or `onAdd(map)` attaches OverlayManager to the map, initializes deck.gl overlay, builds UI, and applies initial state.
+3. **Applying Initial State**: StateStore restores persisted state (base, overlays, groups, layer order, viewport). LayersControl applies viewport, base style, overlays (in order), and updates UI.
+4. **Runtime Operations**:
+   - UI actions emit events → LayersControl calls OverlayManager/StateStore methods.
+   - OverlayManager emits loading/success/error/zoomfilter events → UIBuilder updates status icons.
+   - State changes are persisted and broadcast as `change` events.
+5. **Teardown**: `onRemove`/`remove` destroys UI, detaches OverlayManager, and removes listeners.
 
-3. Applying initial state
-   - StateStore restores persisted state (baseId, overlays, groups, layerOrder, viewport).
-   - LayersControl applies viewport (jumpTo), base style, and overlays according to persisted `layerOrder` then remaining overlays.
-   - UIBuilder elements updated to reflect restored states.
+---
 
-4. Runtime operations
-   - UI actions → UIBuilder emits events → LayersControl calls OverlayManager / StateStore methods.
-   - OverlayManager emits loading/success/error → UIBuilder updates status icons and LayersControl forwards events.
-   - State changes are persisted by StateStore and broadcast as `change` events.
+## 4. Advanced Features
 
-5. Teardown
-   - onRemove/remove calls UIBuilder.destroy(), OverlayManager.removeMap(), and removes map listeners to avoid leaks.
+- **Deck.gl Integration**: OverlayManager creates a single `deck.MapboxOverlay` and manages deck.gl layer instances. Opacity is applied from persisted state when creating deck layers. Opacity updates are performed by cloning deck layer instances with `.clone({ opacity })`.
+- **Overlay Ordering and Positioning**: `layerOrder` is maintained in StateStore and used by OverlayManager to determine deck.gl layer order. MapLibre layer insertion uses `layerDef.beforeId`, `overlay.anchor?.beforeId`, or `getOverlayBeforeId()` to position overlays relative to label layers. On style changes, OverlayManager clears caches and reapplies overlays.
+- **Dynamic Overlays (renderOnClick)**: Overlays can defer loading until requested by the user. Results are cached, loading/error states are tracked, and UI provides retry/error feedback.
+- **Zoom Filtering**: OverlayManager checks overlay `minZoomLevel`/`maxZoomLevel` on show/hide and on zoom events. Overlays outside zoom constraints are hidden and UI shows a zoom-filtered status.
+- **State Persistence**: StateStore persists baseId, overlays, groups, layerOrder, and viewport to localStorage. Restoration validates IDs and skips unknown entries.
 
-## Ordering & positioning
+---
 
-- `layerOrder` is maintained in StateStore and used by OverlayManager._updateDeckLayers() to determine deck layer order.
-- MapLibre layer insertion uses:
-  - layerDef.beforeId || overlay.anchor?.beforeId || getOverlayBeforeId() — the latter tries to find a suitable label layer to insert before.
-- When styles change, MapLibre removes layers/sources — OverlayManager handles `style.load` to clear caches and reapply overlays.
+## 5. Testability and Maintenance
 
-## Deck.gl integration notes
-
-- OverlayManager creates a single `deck.MapboxOverlay` and manages a Map of deck layer instances keyed by deck layer id.
-- When creating deck layer instances, persisted opacity (StateStore.overlayStates[overlayId].opacity) is applied.
-- Opacity updates are performed by cloning deck layer instances with `.clone({ opacity })`.
-
-## Error handling & resilience
-
-- StateStore validates persisted state and logs warnings for removed IDs instead of failing.
-- renderOnClick results are cached; concurrent requests are prevented; errors are surfaced via `error` events and UI retry affordance.
-- UI rebuild on add/remove invalidates DOM references — external code should not depend on internal DOM nodes.
-
-## Testability & maintenance benefits
-
-- Single-responsibility classes make unit testing straightforward:
-  - StateStore tests: persistence, validation, event emission.
-  - OverlayManager tests: deck layer creation (mock deck), error/loading state transitions.
-  - UIBuilder tests: DOM creation, event emission (can be run in DOM-like environment).
-- Clear boundaries reduce coupling and minimize accidental side-effects during changes.
+- Each class has a single responsibility, making unit testing straightforward:
+  - StateStore: persistence, validation, event emission.
+  - OverlayManager: deck layer creation, error/loading transitions.
+  - UIBuilder: DOM creation, event emission.
+- Clear boundaries reduce coupling and side-effects.
+- All features and behaviors are directly mapped to the implementation in `src/js/main.js`.

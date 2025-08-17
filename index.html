@@ -434,6 +434,89 @@
                 opacityControls: true,
                 panOnAdd: true,
                 panZoom: 10
+            },
+            {
+                id: 'high-zoom-demo',
+                label: 'High Zoom Demo (15+)',
+                group: 'Zoom Constraints',
+                deckLayers: [
+                    {
+                        id: 'high-zoom-circles',
+                        type: 'ScatterplotLayer',
+                        props: {
+                            data: [
+                                { position: [-73.9857, 40.7580], name: 'High Zoom Point 1' },
+                                { position: [-73.9776, 40.7614], name: 'High Zoom Point 2' },
+                                { position: [-73.9735, 40.7505], name: 'High Zoom Point 3' }
+                            ],
+                            getPosition: d => d.position,
+                            getRadius: 20,
+                            getFillColor: [255, 165, 0],
+                            getLineColor: [255, 255, 255],
+                            lineWidthMinPixels: 1,
+                            pickable: true
+                        }
+                    }
+                ],
+                minZoomLevel: 15, // Only visible at zoom 15 or higher
+                defaultVisible: false,
+                opacityControls: true
+            },
+            {
+                id: 'low-zoom-demo',
+                label: 'Low Zoom Demo (5-12)',
+                group: 'Zoom Constraints',
+                deckLayers: [
+                    {
+                        id: 'low-zoom-arcs',
+                        type: 'ArcLayer',
+                        props: {
+                            data: [
+                                { source: [-80, 35], target: [-70, 45] },
+                                { source: [-75, 40], target: [-65, 50] }
+                            ],
+                            getSourcePosition: d => d.source,
+                            getTargetPosition: d => d.target,
+                            getSourceColor: [150, 0, 150],
+                            getTargetColor: [0, 150, 150],
+                            getWidth: 5,
+                            pickable: true
+                        }
+                    }
+                ],
+                minZoomLevel: 5,
+                maxZoomLevel: 12, // Only visible between zoom 5-12
+                defaultVisible: false,
+                opacityControls: true
+            },
+            {
+                id: 'forced-satellite-demo',
+                label: 'Force Satellite + Tilt',
+                group: 'Forced Attributes',
+                deckLayers: [
+                    {
+                        id: 'forced-demo-circles',
+                        type: 'ScatterplotLayer',
+                        props: {
+                            data: [
+                                { position: [-73.9857, 40.7580], name: 'Forced Demo Point' }
+                            ],
+                            getPosition: d => d.position,
+                            getRadius: 100,
+                            getFillColor: [255, 0, 255],
+                            getLineColor: [255, 255, 255],
+                            lineWidthMinPixels: 3,
+                            pickable: true
+                        }
+                    }
+                ],
+                forcedBaseLayerId: 'satellite', // Force satellite base when activated
+                forcedBearing: 45, // Force 45-degree rotation
+                forcedPitch: 60, // Force 60-degree tilt
+                defaultVisible: false,
+                opacityControls: true,
+                panOnAdd: true, // This will work together with forced viewport
+                panZoom: 16
             }
         ];
 

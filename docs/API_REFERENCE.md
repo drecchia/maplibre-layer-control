@@ -1,109 +1,137 @@
 # API Reference — LayersControl
 
-This document is a precise reference for the public API, static helpers and emitted events.
+This document describes the public API, configuration options, and events for LayersControl. All information is based on the actual implementation in `src/js/main.js`. Deprecated, internal, or unsupported features are omitted.
+
+---
 
 ## Classes
 
-- EventEmitter
-  - on(event: string, handler: Function): this
-  - off(event: string, handler: Function): this
-  - emit(event: string, data?: any): void
+### EventEmitter (public)
+- `on(event, handler): this`  
+  Subscribe to an event.
+- `off(event, handler): this`  
+  Unsubscribe from an event.
+- `emit(event, data): void`  
+  Emit an event with optional data.
 
-- StateStore
-  - constructor(options: Object)
-  - getState(): Object
-  - setState(newState: Object): void
-  - setBase(baseId: string): void
-  - setOverlay(overlayId: string, state: { visible?: boolean, opacity?: number }): void
-  - setGroup(groupId: string, state: { visible?: boolean, opacity?: number }): void
-  - setViewport(viewport: { center?: [number,number], zoom?: number, bearing?: number, pitch?: number }): void
-  - getLayerOrder(): string[]
+---
 
-- OverlayManager
-  - constructor(options: Object, stateStore?: StateStore)
-  - setMap(map: maplibregl.Map): void
-  - removeMap(): void
-  - show(overlayId: string, isUserInteraction?: boolean): Promise<boolean>
-  - hide(overlayId: string): void
-  - applyOpacity(overlayId: string, opacity: number): void
-  - applyDeckOpacity(overlayId: string, opacity: number): void
-  - setBase(baseId: string): void
-  - reposition(): void
-  - getOverlayBeforeId(): string | undefined
+### StateStore (internal, relevant for persistence/events)
+- `constructor(options)`
+- `getState(): Object`
+- `setState(newState: Object): void`
+- `setBase(baseId: string): void`
+- `setOverlay(overlayId: string, state: { visible?: boolean, opacity?: number }): void`
+- `setGroup(groupId: string, state: { visible?: boolean, opacity?: number }): void`
+- `setViewport(viewport: { center?: [number,number], zoom?: number, bearing?: number, pitch?: number }): void`
+- `getLayerOrder(): string[]`
+- `clearMemory(): boolean`
 
-- UIBuilder
-  - constructor(options: Object, stateStore?: StateStore)
-  - build(): HTMLElement
-  - destroy(): void
-  - updateBaseRadios(currentId: string): void
-  - updateOverlayCheckbox(id: string, visible: boolean): void
-  - updateOverlayStatus(id: string, status: 'loading'|'error'|'success'): void
-  - updateGroupCheckbox(groupId: string, visible: boolean): void
-  - createOpacitySlider(id: string, initialValue: number): HTMLElement
-  - updateOpacitySlider(id: string, opacity: number): void
+---
 
-- LayersControl (public facade)
-  - constructor(options?: Object)
-    - Options are documented in CONFIGURATION.md
-  - Static helpers:
-    - getInitialStyle(options?: Object): String|Object|null
-    - getInitialViewport(options?: Object): { center, zoom, bearing, pitch } | null
-  - MapLibre integration:
-    - addTo(map: maplibregl.Map): this
-    - onAdd(map: maplibregl.Map): HTMLElement
-    - onRemove(): void
-    - remove(): void
-    - getDefaultPosition(): string
-  - Layer management:
-    - setBase(baseId: string): void
-    - toggleOverlay(overlayId: string, visible: boolean|null = null, isUserInteraction: boolean = false): Promise<void>
-    - setOverlayOpacity(overlayId: string, opacity: number): void
-    - toggleOverlayGroup(groupId: string, visible: boolean|null = null, isUserInteraction: boolean = false): Promise<void>
-    - setGroupOpacity(groupId: string, opacity: number): void
-    - addOverlay(overlay: Object): void
-    - removeOverlay(overlayId: string): void
-    - repositionOverlays(): void
-    - getOverlayBeforeId(): string | undefined
-    - getState(): Object
-    - setState(newState: Object): void
+### OverlayManager (internal, manages overlays and events)
+- `constructor(options, stateStore)`
+- `setMap(map: maplibregl.Map): void`
+- `removeMap(): void`
+- `show(overlayId: string, isUserInteraction?: boolean): Promise<boolean>`
+- `hide(overlayId: string): void`
+- `applyOpacity(overlayId: string, opacity: number): void`
+- `setBase(baseId: string): void`
+- `reposition(): void`
+- `getOverlayBeforeId(): string | undefined`
+- `updateAllZoomFiltering(): void`
+- `removeAllOverlays(): void`
 
-## Event list (emitted by LayersControl / components)
+---
 
-- 'basechange'
-  - payload: { baseId: string, previousBaseId: string }
-- 'overlaychange'
-  - payload: { id: string, visible: boolean, opacity: number, previousVisible?: boolean, previousOpacity?: number }
-- 'overlaygroupchange'
-  - payload: { groupId: string, visible: boolean, opacity: number, overlays: string[] }
-- 'change'
-  - payload: Full state object:
-    {
-      baseId: string,
-      overlays: { [overlayId]: { visible: boolean, opacity: number } },
-      groups: { [groupId]: { visible: boolean, opacity: number } },
-      layerOrder?: string[],
-      viewport?: { center?: [number,number], zoom?: number, bearing?: number, pitch?: number }
-    }
-- 'loading'
-  - payload: { id: string }
-- 'success'
-  - payload: { id: string }
-- 'error'
-  - payload: { id: string, error?: string }
-- 'styleload'
-  - payload: none
-- 'sourceloaded'
-  - payload: sourceId (string)
-- 'viewportchange'
-  - payload: { viewport: { center, zoom, bearing, pitch }, previousViewport: { … } }
+### LayersControl (public facade)
+- `constructor(options?: Object)`
+- `addTo(map: maplibregl.Map): this`
+- `onAdd(map: maplibregl.Map): HTMLElement`
+- `onRemove(): void`
+- `remove(): void`
+- `destroy(): void`
+- `setBase(baseId: string): void`
+- `toggleOverlay(overlayId: string, visible: boolean|null = null, isUserInteraction: boolean = false): Promise<void>`
+- `hideOverlay(overlayId: string): Promise<void>`
+- `showOverlay(overlayId: string, isUserInteraction: boolean = false): Promise<void>`
+- `setOverlayOpacity(overlayId: string, opacity: number): void`
+- `repositionOverlays(): void`
+- `getOverlayBeforeId(): string | undefined`
+- `toggleOverlayGroup(groupId: string, visible: boolean|null = null, isUserInteraction: boolean = false): Promise<void>`
+- `setGroupOpacity(groupId: string, opacity: number): void`
+- `addOverlay(overlay: Object): void`
+- `removeOverlay(overlayId: string): void`
+- `removeAllOverlays(): void`
+- `getState(): Object`
+- `setState(newState: Object): void`
+- **Static methods:**
+  - `getInitialStyle(options?: Object): String|Object|null`
+  - `getInitialViewport(options?: Object): { center, zoom, bearing, pitch } | null`
 
-## Notes & behavior details
+---
 
-- toggleOverlay returns a Promise and will abort visibility toggling when a renderOnClick overlay fails to load.
-- Overlay opacity changes are persisted via StateStore (see persistence).
-- addOverlay will initialize UI and show overlay if overlay.defaultVisible is true.
-- getInitialStyle/getInitialViewport read localStorage at the configured persist.localStorageKey and return restored values when present and valid.
+## LayersControl Options
+
+See [CONFIGURATION.md](./CONFIGURATION.md) for a full schema and examples.
+
+---
+
+## Overlay Configuration Attributes
+
+Documented attributes are supported in code:
+
+- **id**: string (required) — Unique overlay identifier
+- **label**: string (required) — Display name in UI
+- **group**: string (optional) — Overlay group
+- **defaultVisible**: boolean (optional)
+- **defaultOpacity**: number (optional, default 1.0)
+- **opacityControls**: boolean (optional)
+- **renderOnClick**: async function (optional) — See [RENDER_ON_CLICK.md](./RENDER_ON_CLICK.md)
+- **deckLayers**: array (optional) — deck.gl layer definitions
+- **panOnAdd**: boolean (optional)
+- **panZoom**: number (optional)
+- **anchor**: { beforeId?: string } (optional)
+- **minZoomLevel**: number (optional)
+- **maxZoomLevel**: number (optional)
+- **forcedBaseLayerId**: string (optional)
+- **forcedBearing**: number (optional)
+- **forcedPitch**: number (optional)
+- **tooltip**: string | object (optional)
+- **getTooltip**: function (optional)
+
+Deprecated MapLibre `source`/`layers`/`layerIds` are not supported.
+
+---
+
+## Events
+
+Events are emitted by LayersControl and subcomponents. Payloads match the implementation in `src/js/main.js`.
+
+- **basechange**: `{ baseId, previousBaseId }`
+- **overlaychange**: `{ id, visible, opacity, previousVisible, previousOpacity }`
+- **overlaygroupchange**: `{ groupId, visible, opacity, overlays }`
+- **change**: Full state object
+- **loading**: `{ id }`
+- **success**: `{ id }`
+- **error**: `{ id, error }`
+- **styleload**: `null`
+- **sourceloaded**: `sourceId`
+- **viewportchange**: `{ viewport, previousViewport }`
+- **zoomfilter**: `{ id, filtered }`
+- **memorycleared**: `{ localStorageKey }`
+
+---
 
 ## Examples
 
-- See docs/QUICKSTART.md and docs/CONFIGURATION.md for sample configuration objects and usage snippets.
+See [QUICKSTART.md](./QUICKSTART.md) and [CONFIGURATION.md](./CONFIGURATION.md) for usage and configuration examples.
+
+---
+
+## Notes
+
+- Only public APIs and supported options are documented.
+- Deprecated or internal features are omitted.
+- OverlayManager and StateStore are internal but relevant for advanced usage and event handling.
+- For dynamic overlays, see [RENDER_ON_CLICK.md](./RENDER_ON_CLICK.md).

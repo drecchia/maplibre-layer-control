@@ -1,83 +1,88 @@
 # CSS — LayersControl
 
-This file documents the CSS classes, layout behavior and customization points used by the LayersControl UI. The canonical styles live in `src/css/main.css`. Use these class names to override appearance or integrate with application themes.
+This document describes all CSS classes, layout, and customization points for the LayersControl UI, strictly reflecting the implementation in `src/css/main.css`.
 
-## Key selectors
+---
+
+## Key Selectors
 
 - `.maplibregl-ctrl.layers-control`
-  - Root control container added to MapLibre control DOM.
-  - Base background, border-radius and box-shadow are applied here.
+  - Root container for the control.
+  - Sets background, border-radius, and box-shadow.
 
 - `.layers-control-toggle`
-  - The clickable control button that toggles the panel.
-  - Accepts either an icon HTMLElement or string HTML inserted by the control.
-  - Width/height and hover background handled here.
+  - Button to open/close the panel.
+  - Handles icon, size, and hover background.
 
 - `.layers-control-panel`
-  - Floating panel that contains base maps and overlays.
-  - Positioned absolutely inside the MapLibre control container; sizing includes min-width, max-width and max-height with vertical scrolling.
-  - Z-index set to 1000 by default.
+  - Floating panel for base maps and overlays.
+  - Absolute positioning, min/max width, max height, scroll, z-index.
 
 - `.layers-section`, `.layers-section-title`
-  - Sections inside the panel (Base Maps, Overlays).
-  - `.layers-section-title` uses uppercase, small font-size and subtle background.
+  - Panel sections and their titles.
+  - Section titles: uppercase, small font, background.
 
 - `.layers-item`, `.overlay-item`, `.base-item`, `.group-item`
-  - Individual items for base styles, overlays and groups.
-  - `.overlay-item` uses column layout to allow an opacity slider beneath the label.
+  - Items for base styles, overlays, and groups.
+  - `.overlay-item`: column layout for slider below label.
+  - `.group-item`: bold, subtle background.
 
 - `.overlay-label`
-  - Flex container for checkbox/radio and label text. Used to make click targets consistent.
+  - Flex container for checkbox/radio and label.
 
 - `.overlay-status`
-  - Status indicator element shown next to overlay labels.
+  - Status indicator next to overlay labels.
   - States:
     - Default: `display: none`
-    - `.loading` — shows spinner animation and blue color (CSS `spin` keyframes)
-    - `.error` — shows error icon styling and click cursor
-    - `.error:hover` — color darkens on hover
-  - The UI sets `textContent` to icons (`⟳`, `⚠`) and toggles class names.
+    - `.loading`: blue spinner (↻), animated
+    - `.error`: red icon (🚨), clickable for retry
+    - `.zoomfiltered`: blue icon (⛔), semi-transparent
 
 - `.opacity-control`, `.opacity-slider`, `.opacity-label`
-  - Opacity control wrapper and slider input.
-  - Slider uses `type="range"` with min `0`, max `1`, step `0.1`.
-  - Slider thumb is styled for WebKit and Mozilla.
-  - The `.opacity-label` shows percentage text and is updated by the UI.
+  - Opacity slider and label.
+  - Slider: `type="range"`, min 0, max 1, step 0.1, custom thumb.
+  - Label: percentage, updated live.
 
-## Positioning behavior
+- `.tooltip-content`, `.tooltip-title`, `.tooltip-body`, `.tooltip-fields`, `.tooltip-field`
+  - Tooltip layout for deck.gl hover popups.
 
-- Panel positioning depends on the MapLibre control container location:
-  - `.maplibregl-ctrl-top-left .layers-control-panel` and `.maplibregl-ctrl-top-right .layers-control-panel` position panel below the control (`top: 100%`).
-  - `.maplibregl-ctrl-bottom-left` and `.maplibregl-ctrl-bottom-right` position panel above the control (`bottom: 100%`).
-  - Left/right alignment is controlled by `.maplibregl-ctrl-*-left` and `.maplibregl-ctrl-*-right`.
+---
 
-## Accessibility & interactions
+## Positioning
 
-- The slider input prevents pointer events from bubbling up to avoid toggling the checkbox when interacting with the slider.
-- Status icons use `title` attributes for tooltip text when in error state.
-- Buttons have `type="button"` to avoid accidental form submissions.
+- Panel position depends on MapLibre container:
+  - `.maplibregl-ctrl-top-left .layers-control-panel`, `.maplibregl-ctrl-top-right .layers-control-panel`: below control (`top: 100%`)
+  - `.maplibregl-ctrl-bottom-left .layers-control-panel`, `.maplibregl-ctrl-bottom-right .layers-control-panel`: above control (`bottom: 100%`)
+  - Left/right alignment by container class.
 
-## Customization tips
+---
 
-1. Theme colors
-   - Override colors (background, hover, active) by targeting `.maplibregl-ctrl.layers-control` and `.layers-control-panel`.
+## Accessibility & Interactions
 
-2. Panel size
-   - Adjust `min-width`, `max-width` and `max-height` on `.layers-control-panel` to fit your layout.
+- Sliders prevent pointer events from toggling checkboxes.
+- Status icons use `title` for tooltips.
+- All buttons use `type="button"`.
 
-3. Status icons
-   - Replace status text with custom SVGs by updating `.overlay-status` content via CSS or by intercepting UI updates (use your own icon HTMLElement as `options.icon`).
+---
 
-4. Integrating with app layout
-   - MapLibre exposes container classes such as `.maplibregl-ctrl-top-right`; use these to adjust panel offsets or add responsive rules.
+## Customization Tips
 
-## Implementation notes (from source)
+- **Theme colors:** Override `.maplibregl-ctrl.layers-control` and `.layers-control-panel`.
+- **Panel size:** Adjust `min-width`, `max-width`, `max-height` on `.layers-control-panel`.
+- **Status icons:** Replace content in `.overlay-status` or use a custom icon via JS.
+- **Integrate with layout:** Use MapLibre container classes for responsive rules.
 
-- The UIBuilder creates DOM elements with these class names and directly manipulates properties such as `style.display`, `textContent`, and `onclick`.
-- The slider input events are debounced (50ms) in the UI to avoid flooding StateStore with updates.
-- The control relies on stable overlay IDs so the UI can query and update elements using `querySelector(input[value="${id}"])`.
+---
 
-## Example override (CSS snippet)
+## Implementation Notes
+
+- UIBuilder creates/manipulates DOM with these classes.
+- Sliders are debounced (50ms) to avoid flooding state.
+- Overlay IDs are used for querying/updating elements.
+
+---
+
+## Example CSS Override
 
 ```css
 .maplibregl-ctrl.layers-control {
@@ -95,4 +100,8 @@ This file documents the CSS classes, layout behavior and customization points us
 }
 ```
 
-Use the selectors above to keep overrides minimal and resilient to future internal DOM structure changes.
+---
+
+## Reference
+
+All selectors and behaviors above are directly mapped to the implementation in `src/css/main.css`. For advanced customization, inspect the DOM and override these classes as needed.

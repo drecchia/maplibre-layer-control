@@ -1,87 +1,89 @@
 # Workflows — LayersControl
 
-This document contains mermaid diagrams that describe key workflows and runtime flows used by the refactored LayersControl component.
-
-## 1) Component lifecycle (construction → teardown)
-
-```mermaid
-flowchart TD
-  A[Construct LayersControl(options)] --> B[Create StateStore, OverlayManager, UIBuilder]
-  B --> C[_wireEvents() between components]
-  C --> D[addTo(map) / onAdd(map)]
-  D --> E[OverlayManager.setMap(map)]
-  E --> F[_initializeDeckGL() → create deck.MapboxOverlay (if deck available)]
-  F --> G[UIBuilder.build() → create control button + panel]
-  G --> H[_applyInitialState() → restore base, overlays, viewport]
-  H --> I[_setupViewportPersistence() → listen to move/zoom/rotate events]
-  I --> J[Runtime: user interactions & programmatic calls]
-  J --> K[Teardown: onRemove/remove() → ui.destroy(), overlayManager.removeMap(), remove listeners]
-```
-
-## 2) renderOnClick (dynamic overlay loading) — success & failure paths
-
-```mermaid
-flowchart TD
-  U[User toggles overlay (UI)] --> V[UIBuilder emits 'overlaychange']
-  V --> W[LayersControl.toggleOverlay(overlayId, ...)]
-  W --> X{Overlay.renderOnClick?}
-  X -- No --> Y[OverlayManager.show uses overlay.deckLayers or map layers] --> Z[Add layers / update deck layers] --> DONE1[Emit success & state changes]
-  X -- Yes --> A1{renderOnClickCache.has(overlayId)?}
-  A1 -- yes --> B1[Use cached deckLayers] --> Z
-  A1 -- no --> C1[OverlayManager.emit('loading') & mark loading] --> D1[Call overlay.renderOnClick(context) async]
-  D1 --> E1{renderOnClick resolves?}
-  E1 -- success --> F1[Validate result (deckLayers or source/layers)] --> G1[Cache result & add layers to deckOverlay/map] --> H1[OverlayManager.emit('success')] --> I1[StateStore.setOverlay(visible,true) & persist] --> DONE1
-  E1 -- failure --> J1[OverlayManager.emit('error') & mark error] --> K1[UI shows error icon with retry] --> DONE2[show() returns false]
-```
-
-## 3) State persistence & initial restore
-
-```mermaid
-flowchart TD
-  S1[App start / LayersControl constructed] --> S2[StateStore._loadPersistedState()]
-  S2 --> S3{localStorage present?}
-  S3 -- no --> S4[Use defaultBaseId or first baseStyle]
-  S3 -- yes --> S5[Parse persisted JSON]
-  S5 --> S6[Validate baseId, overlay IDs, group IDs]
-  S6 --> S7[Filter invalid overlay IDs from layerOrder]
-  S7 --> S8[Restore viewport (center/zoom/bearing/pitch) if present]
-  S8 --> S9[LayersControl._applyInitialState()]
-  S9 --> S10[Set base via OverlayManager.setBase()]
-  S9 --> S11[Apply overlays in persisted layerOrder then remaining overlays]
-  S11 --> S12[UIBuilder.updateOverlayCheckbox/slider & OverlayManager.show() calls]
-```
-
-## 4) Dynamic add/remove overlay (runtime update)
-
-```mermaid
-flowchart TD
-  M1[Call layersControl.addOverlay(overlay)] --> M2{overlay.id exists?}
-  M2 -- yes --> M3[Warn & noop]
-  M2 -- no --> M4[Push overlay into options.overlays]
-  M4 --> M5[StateStore.init overlay state (visible/defaultOpacity)]
-  M5 --> M6[If group -> init group state if needed]
-  M6 --> M7[ui.destroy(); ui.build() (rebuild DOM)]
-  M7 --> M8{overlay.defaultVisible?}
-  M8 -- yes --> M9[overlayManager.show(overlay.id) && stateStore.setOverlay(visible:true)]
-  M8 -- no --> M10[Done]
-  M9 --> M10[Persist state]
-```
-
-## 5) Viewport persistence debounce behavior
-
-```mermaid
-flowchart TD
-  V0[Map movement events: moveend/zoomend/rotateend/pitchend] --> V1[debouncedSave() called]
-  V1 --> V2[clearTimeout -> setTimeout 500ms]
-  V2 --> V3[After 500ms of no movement -> stateStore.setViewport({center,zoom,bearing,pitch})]
-  V3 --> V4[stateStore._persistState() -> localStorage.setItem(key, JSON.stringify(state))]
-```
+This document describes the main runtime workflows of LayersControl, based strictly on the real implementation. All diagrams and explanations are verified against the code in `src/js/main.js`.
 
 ---
 
-Notes
-- Diagrams use the same terminology and components exposed in the code: LayersControl (facade), StateStore, OverlayManager, UIBuilder.
-- The renderOnClick flow emphasizes caching, concurrent call prevention, success/failure event emission and retry affordance via the UI.
-- The persistence flow highlights validation steps that avoid restoring stale/unknown overlay or group IDs.
+## 1. Component Lifecycle
 
-You can preview these diagrams in VS Code with Mermaid preview extensions or on platforms that render mermaid blocks.
+**Construction → Teardown**
+
+- `new LayersControl(options)` creates StateStore, OverlayManager, UIBuilder.
+- `_wireEvents()` connects all components.
+- `addTo(map)` or `onAdd(map)` attaches OverlayManager to the map, initializes deck.gl overlay, builds UI, and applies initial state.
+- `_applyInitialState()` restores persisted base, overlays, and viewport.
+- `_setupViewportPersistence()` listens to map move/zoom/rotate events and persists viewport.
+- Runtime: user interactions and programmatic API calls update state and UI.
+- Teardown: `onRemove()`/`remove()` destroys UI, detaches OverlayManager, and removes listeners.
+
+---
+
+## 2. Overlay Activation: deckLayers and renderOnClick
+
+- Overlays must use `deckLayers` or `renderOnClick`. MapLibre `source`/`layers` are not supported.
+- When toggling an overlay:
+  - If `renderOnClick` is present and not cached, OverlayManager calls it, caches the result, and emits loading/success/error events.
+  - If cached, uses cached deckLayers.
+  - If no `renderOnClick`, uses static `deckLayers`.
+  - OverlayManager adds/removes deck.gl layers as needed, respecting persisted opacity and layer order.
+  - UI updates status indicators for loading, error, zoom filtering, etc.
+
+---
+
+## 3. State Persistence & Restore
+
+- StateStore persists:
+  - `baseId`
+  - overlays (visibility, opacity)
+  - groups (visibility, opacity)
+  - `layerOrder`
+  - `viewport`
+- On startup, StateStore restores persisted state, validates IDs, and skips unknown overlays/groups.
+- `_applyInitialState()` applies base, overlays (in order), group states, and viewport.
+- Viewport is restored if present.
+
+---
+
+## 4. Dynamic Add/Remove Overlay
+
+- `addOverlay(overlay)`:
+  - Adds overlay to options and initializes state.
+  - If grouped, initializes group state if needed.
+  - Rebuilds UI.
+  - If `defaultVisible`, shows overlay and persists state.
+- `removeOverlay(overlayId)`:
+  - Hides overlay if visible, removes from options/state/UI, and persists state.
+- `removeAllOverlays()`:
+  - Hides and removes all overlays, clears UI and state, and persists.
+
+---
+
+## 5. Viewport Persistence (Debounce)
+
+- On map movement events (`moveend`, `zoomend`, `rotateend`, `pitchend`), debounced save triggers after 500ms of inactivity.
+- StateStore updates and persists viewport (`center`, `zoom`, `bearing`, `pitch`).
+
+---
+
+## 6. Zoom Filtering
+
+- OverlayManager checks overlay `minZoomLevel`/`maxZoomLevel` on show/hide and on zoom events.
+- Overlays outside zoom constraints are hidden and UI shows a zoom-filtered status.
+
+---
+
+## 7. Event Flow
+
+- All state changes emit events (`basechange`, `overlaychange`, `overlaygroupchange`, `change`, `loading`, `success`, `error`, `viewportchange`, `zoomfilter`, `memorycleared`).
+- UIBuilder listens for events to update UI.
+- Consumers can subscribe to events on the LayersControl instance.
+
+---
+
+## Notes
+
+- All workflows are based on the actual code in `src/js/main.js`.
+- Only supported overlay types (`deckLayers`, `renderOnClick`) are documented.
+- For API and configuration, see [API_REFERENCE.md](./API_REFERENCE.md) and [CONFIGURATION.md](./CONFIGURATION.md).
+- For dynamic overlays, see [RENDER_ON_CLICK.md](./RENDER_ON_CLICK.md).
+- For CSS/UI, see [CSS.md](./CSS.md).

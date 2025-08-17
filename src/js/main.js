@@ -45,10 +45,18 @@ class StateStore extends EventEmitter {
         super();
         this.options = options;
         this.currentBaseId = options.defaultBaseId || (options.baseStyles[0]?.id);
+        this.previousBaseId = null; // Track previous base for potential restoration
         this.overlayStates = {};
         this.groupStates = {};
         this.layerOrder = []; // Track the order in which layers were added/shown
         this.viewportState = {
+            center: null,
+            zoom: null,
+            bearing: 0,
+            pitch: 0
+        };
+        // Track previous viewport for potential restoration
+        this.previousViewportState = {
             center: null,
             zoom: null,
             bearing: 0,
@@ -181,13 +189,13 @@ class StateStore extends EventEmitter {
     }
 
     setBase(baseId) {
-        const previousBaseId = this.currentBaseId;
+        this.previousBaseId = this.currentBaseId;
         this.currentBaseId = baseId;
         this._persistState();
 
         this.emit('basechange', {
             baseId,
-            previousBaseId
+            previousBaseId: this.previousBaseId
         });
         this.emit('change', this.getState());
     }
@@ -236,7 +244,7 @@ class StateStore extends EventEmitter {
     }
 
     setViewport(viewport) {
-        const previousState = {
+        this.previousViewportState = {
             ...this.viewportState
         };
 
@@ -251,7 +259,7 @@ class StateStore extends EventEmitter {
             viewport: {
                 ...this.viewportState
             },
-            previousViewport: previousState
+            previousViewport: this.previousViewportState
         });
         this.emit('change', this.getState());
     }
@@ -299,6 +307,32 @@ class StateStore extends EventEmitter {
     getLayerOrder() {
         return [...this.layerOrder];
     }
+
+    /**
+     * Clear all persisted state from localStorage
+     * This will remove all saved overlay states, base layer selection, viewport state, etc.
+     */
+    clearMemory() {
+        if (!this.options.persist?.localStorageKey) {
+            console.warn('No localStorage key configured for persistence');
+            return false;
+        }
+
+        try {
+            localStorage.removeItem(this.options.persist.localStorageKey);
+            console.log(`Cleared persisted state from localStorage key: ${this.options.persist.localStorageKey}`);
+            
+            // Emit event to notify that memory has been cleared
+            this.emit('memorycleared', {
+                localStorageKey: this.options.persist.localStorageKey
+            });
+            
+            return true;
+        } catch (e) {
+            console.error('Failed to clear persisted state:', e);
+            return false;
+        }
+    }
 }
 
 /**
@@ -317,6 +351,7 @@ class OverlayManager extends EventEmitter {
         this.renderOnClickCache = new Map();
         this.renderOnClickLoading = new Set();
         this.renderOnClickErrors = new Set();
+        this.zoomFilteredOverlays = new Set(); // Track overlays hidden due to zoom constraints
     }
 
     setMap(map) {
@@ -339,20 +374,9 @@ class OverlayManager extends EventEmitter {
             this.deckOverlay = new deck.MapboxOverlay({
                 interleaved: false,
                 layers: [],
-                pickingRadius: 5,
+                pickingRadius: 10,
                 controller: false,
-                getTooltip: ({
-                    object
-                }) => object && {
-                    html: `<div><strong>${object.name || object.id || 'Feature'}</strong></div>`,
-                    style: {
-                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                        color: 'white',
-                        padding: '8px',
-                        borderRadius: '4px',
-                        fontSize: '12px'
-                    }
-                }
+                getTooltip: this._getTooltip.bind(this)
             });
 
             this.map.addControl(this.deckOverlay);
@@ -375,18 +399,175 @@ class OverlayManager extends EventEmitter {
         this.deckLayers.clear();
     }
 
+    /**
+     * Main tooltip handler for Deck.gl
+     */
+    _getTooltip(info) {
+        if (!info || !info.object || !info.layer) {
+            return null;
+        }
+
+        const layerId = info.layer.id;
+        const pickedObject = info.object;
+        
+        // Find the overlay that contains this layer
+        const overlay = this._findOverlayByLayerId(layerId);
+        if (!overlay) {
+            return null;
+        }
+
+        // Check if overlay has custom tooltip configuration
+        if (overlay.getTooltip && typeof overlay.getTooltip === 'function') {
+            // Custom tooltip function
+            const tooltipData = overlay.getTooltip(pickedObject, info);
+            if (tooltipData) {
+                return {
+                    html: tooltipData.html || this._formatDefaultTooltip(tooltipData),
+                    style: tooltipData.style || this._getDefaultTooltipStyle()
+                };
+            }
+        } else if (overlay.tooltip) {
+            // Simple tooltip configuration
+            return {
+                html: this._formatTooltipFromConfig(overlay.tooltip, pickedObject, info),
+                style: this._getDefaultTooltipStyle()
+            };
+        } else if (pickedObject.name) {
+            // Fallback to name property
+            return {
+                html: `<div class="tooltip-content">${pickedObject.name}</div>`,
+                style: this._getDefaultTooltipStyle()
+            };
+        }
+
+        return null;
+    }
+
+    /**
+     * Helper method to find overlay by layer ID
+     */
+    _findOverlayByLayerId(layerId) {
+        for (const overlay of this.options.overlays) {
+            if (overlay.deckLayers) {
+                for (const deckLayer of overlay.deckLayers) {
+                    if (deckLayer.id === layerId) {
+                        return overlay;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Format tooltip from simple configuration
+     */
+    _formatTooltipFromConfig(tooltipConfig, object, info) {
+        if (typeof tooltipConfig === 'string') {
+            // Simple property name
+            return `<div class="tooltip-content">${object[tooltipConfig] || 'No data'}</div>`;
+        } else if (typeof tooltipConfig === 'object') {
+            // Configuration object
+            let html = '<div class="tooltip-content">';
+            
+            if (tooltipConfig.title) {
+                const title = this._getPropertyValue(object, tooltipConfig.title);
+                html += `<div class="tooltip-title">${title}</div>`;
+            }
+            
+            if (tooltipConfig.fields && Array.isArray(tooltipConfig.fields)) {
+                html += '<div class="tooltip-fields">';
+                tooltipConfig.fields.forEach(field => {
+                    if (typeof field === 'string') {
+                        const value = this._getPropertyValue(object, field);
+                        html += `<div class="tooltip-field"><strong>${field}:</strong> ${value}</div>`;
+                    } else if (field.label && field.property) {
+                        const value = this._getPropertyValue(object, field.property);
+                        html += `<div class="tooltip-field"><strong>${field.label}:</strong> ${value}</div>`;
+                    }
+                });
+                html += '</div>';
+            }
+            
+            html += '</div>';
+            return html;
+        }
+        
+        return `<div class="tooltip-content">${object.name || 'No data'}</div>`;
+    }
+
+    /**
+     * Helper to get property value with dot notation support
+     */
+    _getPropertyValue(object, propertyPath) {
+        if (!propertyPath) return '';
+        
+        const parts = propertyPath.split('.');
+        let value = object;
+        
+        for (const part of parts) {
+            if (value && typeof value === 'object' && part in value) {
+                value = value[part];
+            } else {
+                return '';
+            }
+        }
+        
+        return value !== null && value !== undefined ? String(value) : '';
+    }
+
+    /**
+     * Format default tooltip
+     */
+    _formatDefaultTooltip(data) {
+        if (typeof data === 'string') {
+            return `<div class="tooltip-content">${data}</div>`;
+        } else if (data.title || data.content) {
+            let html = '<div class="tooltip-content">';
+            if (data.title) {
+                html += `<div class="tooltip-title">${data.title}</div>`;
+            }
+            if (data.content) {
+                html += `<div class="tooltip-body">${data.content}</div>`;
+            }
+            html += '</div>';
+            return html;
+        }
+        return `<div class="tooltip-content">${JSON.stringify(data)}</div>`;
+    }
+
+    /**
+     * Default tooltip styling
+     */
+    _getDefaultTooltipStyle() {
+        return {
+            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            color: 'white',
+            padding: '8px 12px',
+            borderRadius: '4px',
+            fontSize: '12px',
+            fontFamily: 'Arial, sans-serif',
+            maxWidth: '300px',
+            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
+            pointerEvents: 'none',
+            zIndex: 1000
+        };
+    }
+
     _attachEventListeners() {
         if (!this.map) return;
 
         this.boundHandlers = {
             onStyleLoad: this._onStyleLoad.bind(this),
             onSourceData: this._onSourceData.bind(this),
-            onError: this._onError.bind(this)
+            onError: this._onError.bind(this),
+            onZoomEnd: this._onZoomEnd.bind(this)
         };
 
         this.map.on('style.load', this.boundHandlers.onStyleLoad);
         this.map.on('sourcedata', this.boundHandlers.onSourceData);
         this.map.on('error', this.boundHandlers.onError);
+        this.map.on('zoomend', this.boundHandlers.onZoomEnd);
     }
 
     _detachEventListeners() {
@@ -395,6 +576,7 @@ class OverlayManager extends EventEmitter {
         this.map.off('style.load', this.boundHandlers.onStyleLoad);
         this.map.off('sourcedata', this.boundHandlers.onSourceData);
         this.map.off('error', this.boundHandlers.onError);
+        this.map.off('zoomend', this.boundHandlers.onZoomEnd);
     }
 
     _onStyleLoad() {
@@ -418,6 +600,117 @@ class OverlayManager extends EventEmitter {
                 id: e.sourceId,
                 error: e.error
             });
+        }
+    }
+
+    _onZoomEnd() {
+        // Update zoom filtering for all visible overlays when zoom changes
+        this.updateAllZoomFiltering();
+    }
+
+    /**
+     * Check if an overlay should be visible based on zoom constraints
+     */
+    _checkZoomConstraints(overlay) {
+        if (!this.map) return true;
+        
+        const currentZoom = this.map.getZoom();
+        
+        if (overlay.minZoomLevel !== undefined && currentZoom < overlay.minZoomLevel) {
+            return false;
+        }
+        
+        if (overlay.maxZoomLevel !== undefined && currentZoom >= overlay.maxZoomLevel) {
+            return false;
+        }
+        
+        return true;
+    }
+
+    /**
+     * Check if an overlay should be visible and update zoom filtering status
+     */
+    _updateZoomFiltering(overlayId) {
+        const overlay = this.options.overlays.find(o => o.id === overlayId);
+        if (!overlay) return true;
+
+        const shouldBeVisible = this._checkZoomConstraints(overlay);
+        
+        if (shouldBeVisible) {
+            this.zoomFilteredOverlays.delete(overlayId);
+        } else {
+            this.zoomFilteredOverlays.add(overlayId);
+        }
+        
+        // Emit event for UI update
+        this.emit('zoomfilter', {
+            id: overlayId,
+            filtered: !shouldBeVisible
+        });
+        
+        return shouldBeVisible;
+    }
+
+    /**
+     * Check and update zoom filtering for all visible overlays
+     */
+    updateAllZoomFiltering() {
+        if (!this.stateStore) return;
+        
+        Object.keys(this.stateStore.overlayStates).forEach(overlayId => {
+            const state = this.stateStore.overlayStates[overlayId];
+            if (state.visible) {
+                const overlay = this.options.overlays.find(o => o.id === overlayId);
+                if (!overlay) return;
+                
+                const shouldBeVisible = this._checkZoomConstraints(overlay);
+                const isCurrentlyFiltered = this.zoomFilteredOverlays.has(overlayId);
+                
+                if (shouldBeVisible && isCurrentlyFiltered) {
+                    // Should show but was filtered - show it now
+                    this.zoomFilteredOverlays.delete(overlayId);
+                    this._showOverlayLayers(overlay);
+                    this.emit('zoomfilter', { id: overlayId, filtered: false });
+                } else if (!shouldBeVisible && !isCurrentlyFiltered) {
+                    // Should hide but was visible - hide it now
+                    this.zoomFilteredOverlays.add(overlayId);
+                    this._hideOverlayLayers(overlay);
+                    this.emit('zoomfilter', { id: overlayId, filtered: true });
+                }
+            }
+        });
+    }
+
+    /**
+     * Show overlay layers (internal method)
+     */
+    _showOverlayLayers(overlay) {
+        if (!overlay) return;
+        
+        // Add deck.gl layers
+        if (overlay.deckLayers && this.deckOverlay) {
+            overlay.deckLayers.forEach(deckLayerDef => {
+                const layer = this._createDeckLayer(deckLayerDef, overlay);
+                if (layer) {
+                    this.deckLayers.set(deckLayerDef.id, layer);
+                }
+            });
+            this._updateDeckLayers();
+        }
+    }
+
+    /**
+     * Hide overlay layers (internal method)
+     */
+    _hideOverlayLayers(overlay) {
+        if (!overlay) return;
+        
+        // Hide deck.gl layers
+        if (overlay.deckLayers) {
+            overlay.deckLayers.forEach(deckLayerDef => {
+                this.deckLayers.delete(deckLayerDef.id);
+            });
+            this._updateDeckLayers();
         }
     }
 
@@ -491,6 +784,71 @@ class OverlayManager extends EventEmitter {
             }
         }
 
+        // Handle forced base layer (default to true, configurable for programmatic calls)
+        const shouldForceBase = isUserInteraction || (overlay.forcedBaseLayerId !== undefined);
+        if (shouldForceBase && overlay.forcedBaseLayerId) {
+            const targetBaseStyle = this.options.baseStyles.find(b => b.id === overlay.forcedBaseLayerId);
+            if (targetBaseStyle) {
+                if (this.stateStore.currentBaseId !== overlay.forcedBaseLayerId) {
+                    this.setBase(overlay.forcedBaseLayerId);
+                    if (this.stateStore) {
+                        this.stateStore.setBase(overlay.forcedBaseLayerId);
+                    }
+                }
+            } else {
+                console.warn(`Forced base layer '${overlay.forcedBaseLayerId}' for overlay '${overlayId}' not found. Keeping current base layer.`);
+            }
+        }
+
+        // Handle forced viewport changes (bearing and pitch) - only when showing overlay
+        const shouldForceViewport = isUserInteraction || (overlay.forcedBearing !== undefined || overlay.forcedPitch !== undefined);
+        if (shouldForceViewport && (overlay.forcedBearing !== undefined || overlay.forcedPitch !== undefined)) {
+            const viewportChanges = {};
+            
+            // Always apply forced values if they exist
+            if (overlay.forcedBearing !== undefined) {
+                viewportChanges.bearing = overlay.forcedBearing;
+            }
+            if (overlay.forcedPitch !== undefined) {
+                viewportChanges.pitch = overlay.forcedPitch;
+            }
+            
+            if (Object.keys(viewportChanges).length > 0) {
+                // Use jumpTo for immediate change (no animation to avoid race conditions)
+                this.map.jumpTo({
+                    ...viewportChanges
+                });
+                
+                // Update state store
+                if (this.stateStore) {
+                    this.stateStore.setViewport(viewportChanges);
+                }
+            }
+        }
+
+        // Handle pan first if enabled - this might change the zoom level
+        if (isUserInteraction && overlay.panOnAdd && overlay.deckLayers) {
+            // Increase delay if forced viewport changes were applied to avoid conflicts
+            const delay = (overlay.forcedBearing !== undefined || overlay.forcedPitch !== undefined) ? 300 : 100;
+            
+            setTimeout(() => {
+                this._panToDeckOverlay(overlay);
+                // After panning, check zoom constraints again
+                setTimeout(() => {
+                    this.updateAllZoomFiltering();
+                }, 1100); // After pan animation completes
+            }, delay);
+        }
+
+        // Check zoom constraints before showing layers
+        const shouldBeVisible = this._updateZoomFiltering(overlayId);
+        
+        if (!shouldBeVisible) {
+            // Layer is hidden due to zoom constraints, but we still return true
+            // because the overlay is "enabled" just filtered by zoom
+            return true;
+        }
+
         // Add deck.gl layers
         if (overlay.deckLayers && this.deckOverlay) {
             try {
@@ -515,19 +873,15 @@ class OverlayManager extends EventEmitter {
             }
         }
 
-        // Pan to overlay if enabled
-        if (isUserInteraction && overlay.panOnAdd && overlay.deckLayers) {
-            setTimeout(() => {
-                this._panToDeckOverlay(overlay);
-            }, 100);
-        }
-
         return true;
     }
 
     hide(overlayId) {
         const overlay = this.options.overlays.find(o => o.id === overlayId);
         if (!overlay || !this.map) return;
+
+        // Clear zoom filtering state
+        this.zoomFilteredOverlays.delete(overlayId);
 
         // Hide deck.gl layers
         if (overlay.deckLayers) {
@@ -670,9 +1024,11 @@ class OverlayManager extends EventEmitter {
                     const firstPoint = firstLayer.props.data[0];
                     if (firstPoint.position) {
                         const [lng, lat] = firstPoint.position;
+                        const targetZoom = overlay.panZoom || 12;
+                        
                         this.map.flyTo({
                             center: [lng, lat],
-                            zoom: overlay.panZoom || 12,
+                            zoom: targetZoom,
                             duration: 1000
                         });
                     }
@@ -766,6 +1122,33 @@ class OverlayManager extends EventEmitter {
 
         this._updateDeckLayers();
     }
+
+    /**
+     * Remove all overlays from the map
+     */
+    removeAllOverlays() {
+        if (!this.map) return;
+
+        // Get all overlay IDs
+        const overlayIds = this.options.overlays.map(overlay => overlay.id);
+
+        // Hide all overlays
+        overlayIds.forEach(overlayId => {
+            this.hide(overlayId);
+        });
+
+        // Clear all deck layers
+        this.deckLayers.clear();
+        this._updateDeckLayers();
+
+        // Clear all caches and states
+        this.loadingOverlays.clear();
+        this.errorOverlays.clear();
+        this.renderOnClickCache.clear();
+        this.renderOnClickLoading.clear();
+        this.renderOnClickErrors.clear();
+        this.zoomFilteredOverlays.clear();
+    }
 }
 
 /**
@@ -821,12 +1204,12 @@ class UIBuilder extends EventEmitter {
                 switch (status) {
                     case 'loading':
                         statusEl.classList.add('loading');
-                        statusEl.textContent = '⟳';
+                        statusEl.textContent = '↻';
                         statusEl.style.display = 'inline-block';
                         break;
                     case 'error':
                         statusEl.classList.add('error');
-                        statusEl.textContent = '⚠';
+                        statusEl.textContent = '🚨';
                         statusEl.title = 'Click to retry';
                         statusEl.style.display = 'inline-block';
                         statusEl.onclick = () => {
@@ -835,9 +1218,16 @@ class UIBuilder extends EventEmitter {
                             });
                         };
                         break;
+                    case 'zoomfiltered':
+                        statusEl.classList.add('zoomfiltered');
+                        statusEl.textContent = '⛔';
+                        statusEl.title = 'Hidden due to zoom level constraints';
+                        statusEl.style.display = 'inline-block';
+                        statusEl.onclick = null;
+                        break;
                     case 'success':
                         statusEl.textContent = '';
-                        statusEl.title = '';
+                        statusEl.title = '✅';
                         statusEl.onclick = null;
                         statusEl.style.display = 'none';
                         break;
@@ -1180,6 +1570,63 @@ class UIBuilder extends EventEmitter {
         document.removeEventListener('click', this.boundHandlers.onDocumentClick);
     }
 
+    /**
+     * Add a new overlay item to the UI
+     */
+    addOverlayItem(overlay) {
+        if (!this.container) {
+            console.warn('UI not built yet, cannot add overlay item');
+            return;
+        }
+
+        const overlayList = this.container.querySelector('.layers-list');
+        if (!overlayList) {
+            console.warn('Overlay list not found, cannot add overlay item');
+            return;
+        }
+
+        const item = this._createOverlayItem(overlay);
+        overlayList.appendChild(item);
+    }
+
+    /**
+     * Remove an overlay item from the UI
+     */
+    removeOverlayItem(overlayId) {
+        if (!this.container) {
+            return;
+        }
+
+        // Find the overlay item by its input checkbox value
+        const overlayInput = this.container.querySelector(`input[value="${overlayId}"]`);
+        if (overlayInput) {
+            const overlayItem = overlayInput.closest('.overlay-item');
+            if (overlayItem && overlayItem.parentNode) {
+                overlayItem.parentNode.removeChild(overlayItem);
+            }
+        }
+    }
+
+    /**
+     * Remove all overlay items from the UI
+     */
+    removeAllOverlayItems() {
+        if (!this.container) {
+            return;
+        }
+
+        const overlayList = this.container.querySelector('.layers-list');
+        if (overlayList) {
+            // Remove all overlay items
+            const overlayItems = overlayList.querySelectorAll('.overlay-item');
+            overlayItems.forEach(item => {
+                if (item.parentNode) {
+                    item.parentNode.removeChild(item);
+                }
+            });
+        }
+    }
+
     _onDocumentClick(e) {
         if (!this.container.contains(e.target)) {
             this._closePanel();
@@ -1346,6 +1793,13 @@ class LayersControl extends EventEmitter {
     }
 
     /**
+     * Destroy the control completely (alias for remove() for clarity)
+     */
+    destroy() {
+        this.remove();
+    }
+
+    /**
      * Set base map
      */
     setBase(baseId) {
@@ -1382,6 +1836,20 @@ class LayersControl extends EventEmitter {
         this.state.setOverlay(overlayId, {
             visible: newVisible
         });
+    }
+
+    /**
+     * Hide an overlay (keeps it in the overlay list, just makes it invisible)
+     */
+    hideOverlay(overlayId) {
+        return this.toggleOverlay(overlayId, false, false);
+    }
+
+    /**
+     * Show an overlay (makes it visible if it's in the overlay list)
+     */
+    showOverlay(overlayId, isUserInteraction = false) {
+        return this.toggleOverlay(overlayId, true, isUserInteraction);
     }
 
     /**
@@ -1511,7 +1979,7 @@ class LayersControl extends EventEmitter {
     }
 
     /**
-     * Remove an overlay from the control dynamically
+     * Remove an overlay completely - hides it if visible, removes from DeckGL, and removes from UI listing
      */
     removeOverlay(overlayId) {
         const overlayIndex = this.options.overlays.findIndex(o => o.id === overlayId);
@@ -1520,16 +1988,49 @@ class LayersControl extends EventEmitter {
             return;
         }
 
+        // Hide the overlay if it's currently visible
         if (this.state.overlayStates[overlayId]?.visible) {
             this.overlayManager.hide(overlayId);
         }
 
+        // Remove from options and state
         this.options.overlays.splice(overlayIndex, 1);
         delete this.state.overlayStates[overlayId];
 
-        // Rebuild UI
-        this.ui.destroy();
-        this.ui.build();
+        // Remove the UI item for this overlay
+        this.ui.removeOverlayItem(overlayId);
+
+        // Persist the updated state
+        this.state._persistState();
+    }
+
+    /**
+     * Remove all overlays completely - hides all visible overlays, removes from DeckGL, and removes from UI listing
+     */
+    removeAllOverlays() {
+        // Get all overlay IDs before we start removing them
+        const overlayIds = [...this.options.overlays.map(overlay => overlay.id)];
+        
+        if (overlayIds.length === 0) {
+            return;
+        }
+
+        // Use the dedicated OverlayManager method to clean up all overlays at once
+        this.overlayManager.removeAllOverlays();
+
+        // Clear all overlays from options and state
+        this.options.overlays = [];
+        
+        // Clear all overlay states
+        overlayIds.forEach(overlayId => {
+            delete this.state.overlayStates[overlayId];
+        });
+
+        // Remove all overlay UI items
+        this.ui.removeAllOverlayItems();
+
+        // Persist the updated state
+        this.state._persistState();
     }
 
     /**
@@ -1610,6 +2111,14 @@ class LayersControl extends EventEmitter {
 
         this.overlayManager.on('success', (data) => {
             this.ui.updateOverlayStatus(data.id, 'success');
+        });
+
+        this.overlayManager.on('zoomfilter', (data) => {
+            if (data.filtered) {
+                this.ui.updateOverlayStatus(data.id, 'zoomfiltered');
+            } else {
+                this.ui.updateOverlayStatus(data.id, 'success');
+            }
         });
 
         this.overlayManager.on('styleload', () => {
@@ -1693,6 +2202,9 @@ class LayersControl extends EventEmitter {
         Object.entries(state.groups).forEach(([groupId, groupState]) => {
             this.ui.updateGroupCheckbox(groupId, groupState.visible);
         });
+
+        // Update zoom filtering for all visible overlays
+        this.overlayManager.updateAllZoomFiltering();
 
         // Set up viewport change listeners
         this._setupViewportPersistence();
