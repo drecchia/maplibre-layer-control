@@ -168,6 +168,35 @@ Example:
 layersControl.setBase('satellite');
 ```
 
+#### addBaseStyle(style)
+Add a new base style to the control dynamically. If a base style with the same ID already exists, it will be replaced.
+
+Parameters:
+- `style` (Object) - Base style definition with required `id` property
+
+Example:
+
+```javascript
+layersControl.addBaseStyle({
+    id: 'custom-terrain',
+    label: 'Custom Terrain',
+    strategy: 'setStyle',
+    style: 'mapbox://styles/username/custom-terrain-id'
+});
+```
+
+#### removeBaseStyle(styleId)
+Remove a base style from the control. If the removed style is currently active, automatically switches to the default base style if available, otherwise switches to the first available base style.
+
+Parameters:
+- `styleId` (String) - ID of the base style to remove
+
+Example:
+
+```javascript
+layersControl.removeBaseStyle('custom-terrain');
+```
+
 #### getCurrentStyle()
 Returns the current style (URL or object) if the active base uses `setStyle`.
 

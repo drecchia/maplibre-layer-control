@@ -1579,13 +1579,30 @@ class UIBuilder extends EventEmitter {
             return;
         }
 
-        const overlayList = this.container.querySelector('.layers-list');
+        // Ensure we target the overlays section list specifically
+        let overlaySection = this.container.querySelector('.overlay-section');
+        if (!overlaySection) {
+            // Create overlay section on the fly if it doesn't exist
+            if (!this.panel) {
+                console.warn('Panel not built yet, cannot add overlay item');
+                return;
+            }
+            overlaySection = this._createOverlaySection();
+            this.panel.appendChild(overlaySection);
+        }
+        const overlayList = overlaySection.querySelector('.layers-list');
         if (!overlayList) {
             console.warn('Overlay list not found, cannot add overlay item');
             return;
         }
 
-        const item = this._createOverlayItem(overlay);
+        // Avoid duplicates: if item exists already, do nothing
+        const existing = overlaySection.querySelector(`input[type="checkbox"][value="${overlay.id}"]`);
+        if (existing) {
+            return;
+        }
+
+    const item = this._createOverlayItem(overlay);
         overlayList.appendChild(item);
     }
 
@@ -1615,15 +1632,75 @@ class UIBuilder extends EventEmitter {
             return;
         }
 
-        const overlayList = this.container.querySelector('.layers-list');
-        if (overlayList) {
-            // Remove all overlay items
-            const overlayItems = overlayList.querySelectorAll('.overlay-item');
-            overlayItems.forEach(item => {
-                if (item.parentNode) {
-                    item.parentNode.removeChild(item);
-                }
-            });
+        // Ensure we target the overlays section list specifically
+        const overlaySection = this.container.querySelector('.overlay-section');
+        if (!overlaySection) {
+            return;
+        }
+        const overlayList = overlaySection.querySelector('.layers-list');
+        if (!overlayList) {
+            return;
+        }
+        // Remove all overlay items
+        const overlayItems = overlayList.querySelectorAll('.overlay-item');
+        overlayItems.forEach(item => {
+            if (item.parentNode) {
+                item.parentNode.removeChild(item);
+            }
+        });
+    }
+
+    /**
+     * Add a new base item to the UI
+     */
+    _addBaseItem(baseStyle) {
+        if (!this.container) {
+            console.warn('UI not built yet, cannot add base item');
+            return;
+        }
+
+        let baseSection = this.container.querySelector('.base-section');
+        if (!baseSection) {
+            // Create base section on the fly if it doesn't exist
+            if (!this.panel) {
+                console.warn('Panel not built yet, cannot add base item');
+                return;
+            }
+            baseSection = this._createBaseSection();
+            this.panel.insertBefore(baseSection, this.panel.firstChild);
+        }
+
+        const baseList = baseSection.querySelector('.layers-list');
+        if (!baseList) {
+            console.warn('Base layers list not found, cannot add base item');
+            return;
+        }
+
+        // Avoid duplicates: if item exists already, do nothing
+        const existing = baseSection.querySelector(`input[type="radio"][name="base-layer"][value="${baseStyle.id}"]`);
+        if (existing) {
+            return;
+        }
+
+        const item = this._createBaseItem(baseStyle);
+        baseList.appendChild(item);
+    }
+
+    /**
+     * Remove a base item from the UI
+     */
+    _removeBaseItem(styleId) {
+        if (!this.container) {
+            return;
+        }
+
+        // Find the base item by its radio input value
+        const baseInput = this.container.querySelector(`input[name="base-layer"][value="${styleId}"]`);
+        if (baseInput) {
+            const baseItem = baseInput.closest('.base-item');
+            if (baseItem && baseItem.parentNode) {
+                baseItem.parentNode.removeChild(baseItem);
+            }
         }
     }
 
@@ -1956,7 +2033,7 @@ class LayersControl extends EventEmitter {
         this.options.overlays.push(overlay);
         this.state.overlayStates[overlay.id] = {
             visible: overlay.defaultVisible || false,
-            opacity: 1.0
+            opacity: typeof overlay.defaultOpacity === 'number' ? overlay.defaultOpacity : 1.0
         };
 
         if (overlay.group && !this.state.groupStates[overlay.group]) {
@@ -1966,9 +2043,8 @@ class LayersControl extends EventEmitter {
             };
         }
 
-        // Rebuild UI and show if defaultVisible
-        this.ui.destroy();
-        this.ui.build();
+    // Add UI item for the new overlay (ensure section exists)
+    this.ui.addOverlayItem(overlay);
 
         if (overlay.defaultVisible) {
             this.overlayManager.show(overlay.id);
@@ -2045,6 +2121,70 @@ class LayersControl extends EventEmitter {
      */
     setState(newState) {
         this.state.setState(newState);
+    }
+
+    /**
+     * Add a new base style to the control dynamically
+     * If a base style with the same ID exists, it will be replaced
+     */
+    addBaseStyle(style) {
+        if (!style || !style.id) {
+            console.warn('Base style must have an id property');
+            return;
+        }
+
+        // Find existing base style with same ID and replace it, or add new one
+        const existingIndex = this.options.baseStyles.findIndex(b => b.id === style.id);
+        if (existingIndex !== -1) {
+            // Replace existing base style
+            this.options.baseStyles[existingIndex] = style;
+            // Remove old UI item and add new one
+            this.ui._removeBaseItem(style.id);
+            this.ui._addBaseItem(style);
+        } else {
+            // Add new base style
+            this.options.baseStyles.push(style);
+            // Add new UI item
+            this.ui._addBaseItem(style);
+        }
+
+        // Keep current selection checked in UI
+        if (this.state?.currentBaseId) {
+            this.ui.updateBaseRadios(this.state.currentBaseId);
+        }
+    }
+
+    /**
+     * Remove a base style from the control
+     * If the removed style is currently active, switches to default or first available base style
+     */
+    removeBaseStyle(styleId) {
+        const baseStyleIndex = this.options.baseStyles.findIndex(b => b.id === styleId);
+        if (baseStyleIndex === -1) {
+            console.warn(`Base style '${styleId}' not found`);
+            return;
+        }
+
+        // Remove the base style from options
+        this.options.baseStyles.splice(baseStyleIndex, 1);
+
+        // Remove the UI item
+    this.ui._removeBaseItem(styleId);
+
+        // Handle case where removed style was currently active
+        if (this.state.currentBaseId === styleId) {
+            if (this.options.baseStyles.length > 0) {
+                // Switch to default base style if available, otherwise first available
+                const newBaseId = this.options.defaultBaseId && 
+                    this.options.baseStyles.find(b => b.id === this.options.defaultBaseId) 
+                    ? this.options.defaultBaseId 
+                    : this.options.baseStyles[0].id;
+                
+                this.setBase(newBaseId);
+            } else {
+                console.warn('No base styles remaining after removal');
+            }
+        }
     }
 
     _wireEvents() {
