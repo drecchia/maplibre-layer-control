@@ -90,7 +90,7 @@ const layersControl = new LayersControl({
 
 ### LayersControl.getInitialStyle(options)
 
-Determines the initial map style based on provided config and persisted state.
+Determines the initial map style based on provided config and (optional) persisted state.
 
 Parameters:
 - `options` (Object) — subset of constructor options (e.g. baseStyles, defaultBaseId, persist)
@@ -110,7 +110,7 @@ const initialStyle = LayersControl.getInitialStyle({
 
 ### LayersControl.getInitialViewport(options)
 
-Reads persisted viewport from localStorage and returns it if present.
+Reads persisted viewport from localStorage and returns it if present (when persistence is configured).
 
 Parameters:
 - `options` (Object) — may include `persist.localStorageKey`
@@ -364,7 +364,8 @@ Top-level options (defaults):
   overlays: [],
   groups: [],
   defaultBaseId: null,
-  persist: { localStorageKey: 'ml-layers' },
+  // optional: enable persistence
+  // persist: { localStorageKey: 'your-key' },
   i18n: (key) => key,
   onChange: null,
   autoClose: true,
@@ -375,8 +376,8 @@ Top-level options (defaults):
 }
 ```
 
-Persistence options:
-- `persist.localStorageKey` (string) — key to store state in localStorage
+Persistence options (opt-in):
+- `persist.localStorageKey` (string) — key to store state in localStorage; when omitted, no state is persisted
 
 See `docs/CONFIGURATION.md` for full schema and examples.
 
@@ -567,7 +568,7 @@ User experience
 - Use clear labels and group related overlays.
 
 State management
-- Persist user preferences with `persist.localStorageKey`.
+- To persist user preferences, pass `persist.localStorageKey`. By default, no persistence is used.
 - Validate persisted state during restore.
 - Plan migrations for persisted keys/format changes.
 

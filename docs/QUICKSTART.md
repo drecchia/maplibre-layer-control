@@ -60,7 +60,8 @@ const layersControl = new LayersControl({
   baseStyles,
   overlays,
   defaultBaseId: 'osm',
-  persist: { localStorageKey: 'my-app-layers' },
+  // optional: enable persistence
+  // persist: { localStorageKey: 'my-app-layers' },
   position: 'top-right'
 });
 
@@ -69,7 +70,8 @@ const map = new maplibregl.Map({
   style: LayersControl.getInitialStyle({
     baseStyles,
     defaultBaseId: 'osm',
-    persist: { localStorageKey: 'my-app-layers' }
+  // optional: enable persistence
+  // persist: { localStorageKey: 'my-app-layers' }
   }) || 'https://demotiles.maplibre.org/style.json',
   center: [0, 0],
   zoom: 2
@@ -79,7 +81,7 @@ map.on('load', () => {
   layersControl.addTo(map);
 
   // Optionally restore viewport from persisted state
-  const vp = LayersControl.getInitialViewport({ persist: { localStorageKey: 'my-app-layers' } });
+  const vp = LayersControl.getInitialViewport({ persist: { localStorageKey: 'my-app-layers' } }); // optional
   if (vp) map.jumpTo(vp);
 });
 ```

@@ -12,7 +12,7 @@ This document describes all recognized options accepted by `new LayersControl(op
 | overlays         | Array\<Overlay\>          | []                     | List of overlay definitions.                                                                 |
 | groups           | Array\<Group\>            | []                     | Optional. Overlay groups for UI grouping and group toggling.                                 |
 | defaultBaseId    | string \| null            | null                   | Default base style id.                                                                       |
-| persist          | object                    | {localStorageKey:'ml-layers'} | Persistence options. See below.                                                              |
+| persist          | object                    | —                        | Persistence options (opt-in). See below.                                                     |
 | i18n             | function                  | (key) => key           | Label translation function.                                                                  |
 | onChange         | function \| null          | null                   | Callback invoked on state changes.                                                           |
 | autoClose        | boolean                   | true                   | Close panel after selection.                                                                 |
@@ -25,9 +25,9 @@ This document describes all recognized options accepted by `new LayersControl(op
 
 ---
 
-## persist
+## persist (opt-in)
 
-- **localStorageKey** (string \| null, default `'ml-layers'`): Key for saving state in localStorage.
+- **localStorageKey** (string): Key for saving state in localStorage. If omitted, no persistence is performed.
 
 ---
 
@@ -99,7 +99,7 @@ Group semantics:
 
 ---
 
-## Persistence (persist.localStorageKey)
+## Persistence (persist.localStorageKey) — opt-in
 
 When set, state is saved to `localStorage` under the given key.
 

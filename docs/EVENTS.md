@@ -179,7 +179,7 @@ All events are re-emitted by the top-level `LayersControl` instance for unified 
 - **Trigger:** `clearMemory()`
 - **Payload:**
   ```json
-  { "localStorageKey": "ml-layers" }
+  { "localStorageKey": "your-key" }
   ```
 - **Notes:** Emitted after clearing all persisted state from localStorage.
 

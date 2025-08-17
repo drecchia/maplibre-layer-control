@@ -1723,9 +1723,8 @@ class LayersControl extends EventEmitter {
             overlays: [],
             groups: [],
             defaultBaseId: null,
-            persist: {
-                localStorageKey: 'ml-layers'
-            },
+            // Persistence is disabled by default; enable by passing
+            // persist: { localStorageKey: 'your-key' }
             i18n: (key) => key,
             onChange: null,
             autoClose: true,
@@ -1753,14 +1752,11 @@ class LayersControl extends EventEmitter {
         const tempOptions = {
             baseStyles: [],
             defaultBaseId: null,
-            persist: {
-                localStorageKey: 'ml-layers'
-            },
             ...options
         };
 
         let persistedBaseId = null;
-        if (tempOptions.persist.localStorageKey) {
+    if (tempOptions.persist?.localStorageKey) {
             try {
                 const stored = localStorage.getItem(tempOptions.persist.localStorageKey);
                 if (stored) {
@@ -1791,13 +1787,10 @@ class LayersControl extends EventEmitter {
      */
     static getInitialViewport(options = {}) {
         const tempOptions = {
-            persist: {
-                localStorageKey: 'ml-layers'
-            },
             ...options
         };
 
-        if (tempOptions.persist.localStorageKey) {
+        if (tempOptions.persist?.localStorageKey) {
             try {
                 const stored = localStorage.getItem(tempOptions.persist.localStorageKey);
                 if (stored) {
