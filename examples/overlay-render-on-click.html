@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>LayersControl Overlay renderOnClick Example</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- MapLibre GL CSS -->
+  <link href="https://unpkg.com/maplibre-gl@4.1.1/dist/maplibre-gl.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/deck.gl@9.1.14/dist/stylesheet.min.css">
+  <link href="../src/css/main.css" rel="stylesheet">
+  <style>
+    html, body, #map { height: 100%; margin: 0; padding: 0; }
+    #map { width: 100vw; height: 100vh; }
+    .test-info {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: white;
+      padding: 15px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      max-width: 300px;
+      z-index: 1000;
+    }
+    .test-info h3 {
+      margin: 0 0 10px 0;
+      color: #333;
+    }
+    .test-info ul {
+      margin: 0;
+      padding-left: 20px;
+    }
+    .test-info li {
+      margin-bottom: 5px;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <div class="test-info">
+    <h3>🧪 Dynamic Overlay</h3>
+    <ul>
+      <li>Dynamic overlay: Toggle to load overlay data on demand.</li>
+    </ul>
+  </div>
+  <!-- MapLibre GL JS -->
+  <script src="https://unpkg.com/maplibre-gl@4.1.1/dist/maplibre-gl.js"></script>
+  <!-- Deck.gl CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/deck.gl@9.1.14/dist.min.js"></script>
+  <!-- LayersControl JS -->
+  <script src="../src/js/main.js"></script>
+  <script>
+    const baseStyles = [
+      {
+        id: 'osm',
+        label: 'OpenStreetMap',
+        style: 'https://demotiles.maplibre.org/style.json',
+        strategy: 'setStyle'
+      }
+    ];
+
+    const overlays = [
+      {
+        id: 'dynamic-overlay',
+        label: 'Dynamic Overlay (renderOnClick)',
+        renderOnClick: async (context) => {
+          // Simulate async data loading
+          await new Promise(resolve => setTimeout(resolve, 500));
+          return {
+            deckLayers: [
+              {
+                id: 'dynamic-layer',
+                type: 'ScatterplotLayer',
+                props: {
+                  data: [
+                    { position: [-46.8, -22.1], name: 'Null Island' },
+                    { position: [-46.4, -22.5], name: 'Point 2' }
+                  ],
+                  getPosition: d => d.position,
+                  getRadius: 8000,
+                  getFillColor: [255, 0, 0], // red rgb
+                  getLineColor: [0, 0, 255], // blue rgb
+                  lineWidthMinPixels: 20,
+                  pickable: true
+                }
+              }
+            ]
+          };
+        },
+        defaultVisible: false
+      }
+    ];
+
+    const map = new maplibregl.Map({
+      container: 'map',
+      style: baseStyles[0].style,
+      center: [-46.4, -22.5],
+      zoom: 6
+    });
+
+    const layersControl = new LayersControl({
+      baseStyles: baseStyles,
+      overlays: overlays,
+      defaultBaseId: 'osm'
+    });
+
+    map.addControl(layersControl, 'top-left');
+  </script>
+</body>
+</html>
