@@ -122,7 +122,8 @@
 
     document.getElementById('remove-control').onclick = function() {
       if (layersControl) {
-        map.removeControl(layersControl);
+        // Use the destroy method to properly clean up all resources
+        layersControl.destroy();
         layersControl = null;
       }
     };

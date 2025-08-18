@@ -120,19 +120,12 @@
 
     // Add Satellite base layer
     document.getElementById('add-baselayer').onclick = function() {
-        if (!layersControl.options.baseStyles.find(b => b.id === satelliteBase.id)) {
-            layersControl.options.baseStyles.push(satelliteBase);
-            layersControl.uiManager.updateBaseStyles();
-        }
+      layersControl.addBaseStyle(satelliteBase);
     };
 
     // Remove Satellite base layer
     document.getElementById('remove-baselayer').onclick = function() {
-        const idx = layersControl.options.baseStyles.findIndex(b => b.id === satelliteBase.id);
-        if (idx !== -1) {
-            layersControl.options.baseStyles.splice(idx, 1);
-            layersControl.uiManager.updateBaseStyles();
-        }
+        layersControl.removeBaseStyle(satelliteBase.id)
     };
   </script>
 </body>

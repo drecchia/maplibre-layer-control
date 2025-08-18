@@ -80,6 +80,72 @@ class LayersControl {
         this.uiManager.setContainer(null);
     }
 
+    // Cleanup and Destruction
+    destroy() {
+        // Remove all overlays first (this will clean up their state and map layers)
+        this.removeAllOverlays();
+        
+        // Clean up map event listeners
+        this._cleanupMapEventListeners();
+        
+        // Remove the control from the map if it's attached
+        if (this.map && this.container) {
+            try {
+                this.map.removeControl(this);
+            } catch (error) {
+                // Control might not be added to map, ignore error
+                console.debug('Control not found on map during destroy:', error);
+            }
+        }
+        
+        // Clear UI manager resources
+        if (this.uiManager) {
+            // Clear all caches and states
+            this.uiManager.deckLayers.clear();
+            this.uiManager.overlayToLayerIds.clear();
+            this.uiManager.overlayCache.clear();
+            this.uiManager.loadingStates.clear();
+            this.uiManager.errorStates.clear();
+            this.uiManager.zoomFilteredOverlays.clear();
+            
+            // Disconnect from map and container
+            this.uiManager.setMap(null);
+            this.uiManager.setContainer(null);
+        }
+        
+        // Clear state manager
+        if (this.stateManager) {
+            // Remove all event listeners
+            this.stateManager.events = {};
+            
+            // Clear all internal state
+            this.stateManager.overlayStates = {};
+            this.stateManager.groupStates = {};
+            this.stateManager.layerOrder = [];
+        }
+        
+        // Remove container from DOM if it exists
+        if (this.container && this.container.parentNode) {
+            this.container.parentNode.removeChild(this.container);
+        }
+        
+        // Clear all references
+        this.map = null;
+        this.container = null;
+        this.uiManager = null;
+        this.stateManager = null;
+        this.options = null;
+        this.mapEventHandlers.clear();
+        
+        // Clear any pending timeouts
+        if (this.viewportSaveTimeout) {
+            clearTimeout(this.viewportSaveTimeout);
+            this.viewportSaveTimeout = null;
+        }
+        
+        return true;
+    }
+
     // State Control API
     setBaseLayer(id) {
         const baseExists = this.options.baseStyles.find(base => base.id === id);
@@ -90,6 +156,70 @@ class LayersControl {
         
         this.stateManager.setBase(id);
         this._applyBaseToMap(id);
+        return true;
+    }
+
+    // Alias for API consistency
+    setBase(baseId) {
+        return this.setBaseLayer(baseId);
+    }
+
+    // Base Style Management
+    addBaseStyle(style) {
+        if (!style || !style.id) {
+            throw new Error('Base style must have an id property');
+        }
+        
+        // Check if base style already exists
+        const existingIndex = this.options.baseStyles.findIndex(base => base.id === style.id);
+        if (existingIndex > -1) {
+            // Update existing base style
+            this.options.baseStyles[existingIndex] = { ...this.options.baseStyles[existingIndex], ...style };
+        } else {
+            // Add new base style
+            this.options.baseStyles.push(style);
+        }
+        
+        // Re-render UI to show the new base style
+        this.uiManager.render();
+        
+        return true;
+    }
+
+    removeBaseStyle(id) {
+        if (!id) {
+            console.warn('Base style ID is required');
+            return false;
+        }
+        
+        // Find the base style to remove
+        const baseIndex = this.options.baseStyles.findIndex(base => base.id === id);
+        if (baseIndex === -1) {
+            console.warn(`Base style '${id}' not found`);
+            return false;
+        }
+        
+        // Check if this is the currently active base style
+        const currentBase = this.stateManager.get('base');
+        const wasActive = currentBase === id;
+        
+        // Remove from configuration
+        this.options.baseStyles.splice(baseIndex, 1);
+        
+        // If the removed style was active, switch to a different one
+        if (wasActive && this.options.baseStyles.length > 0) {
+            // Try to switch to default base, otherwise use the first available
+            const newBaseId = this.options.defaultBaseId && 
+                              this.options.baseStyles.find(base => base.id === this.options.defaultBaseId)
+                ? this.options.defaultBaseId 
+                : this.options.baseStyles[0].id;
+            
+            this.setBaseLayer(newBaseId);
+        }
+        
+        // Re-render UI to reflect changes
+        this.uiManager.render();
+        
         return true;
     }
 
