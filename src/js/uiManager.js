@@ -939,19 +939,25 @@ class UIManager {
                 case 'loading':
                     loading.textContent = '↻';
                     loading.style.display = 'inline';
+                    loading.classList.add('loadingRotate');
+                    loading.title = 'Loading...';
                     break;
                 case 'error':
                     loading.textContent = '🚨';
                     loading.style.display = 'inline';
+                    loading.classList.remove('loadingRotate');
                     loading.title = 'Error loading overlay';
                     break;
                 case 'zoomfiltered':
                     loading.textContent = '🔍';
                     loading.style.display = 'inline';
+                    loading.classList.remove('loadingRotate');
                     loading.title = 'Hidden due to zoom level';
                     break;
                 default:
                     loading.style.display = 'none';
+                    loading.classList.remove('loadingRotate');
+                    loading.title = '';
                     break;
             }
         }

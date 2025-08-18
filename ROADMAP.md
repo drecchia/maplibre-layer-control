@@ -39,3 +39,4 @@ V2
 ===
 1. Removing overlay leaves empty groups on UI
 2. fitBounds é calculado antes, mas para renderOnClick pode ser um problema
+3. layersControl.defaultBaseId  WHY ?
