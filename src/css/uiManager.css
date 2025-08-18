@@ -1,0 +1,531 @@
+/* LayersControl Component Styles */
+/* Using BEM methodology: Block__Element--Modifier */
+
+/* ==========================================================================
+   Main Container & Toggle
+   ========================================================================== */
+
+.layers-control-container {
+    background: white;
+    border-radius: 4px;
+    box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.1);
+    position: relative;
+}
+
+.layers-control__toggle {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 8px;
+    font-size: 16px;
+    color: #333;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 29px;
+    height: 29px;
+    border-radius: 4px;
+    transition: background-color 0.2s ease;
+}
+
+.layers-control__toggle:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+.layers-control__toggle:focus {
+    outline: 2px solid #007cba;
+    outline-offset: -2px;
+}
+
+/* ==========================================================================
+   Panel Container
+   ========================================================================== */
+
+.layers-control__panel {
+    position: absolute;
+    background: white;
+    border-radius: 4px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+    min-width: 250px;
+    max-width: 300px;
+    max-height: min(70dvh, 400px);
+    overflow-y: auto;
+    overflow-x: hidden;
+    z-index: 1000;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-10px);
+    transition: all 0.3s ease;
+}
+
+.layers-control__panel--open {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+}
+
+/* Position adjustments based on control position */
+/* Top positions - panel appears below control */
+.maplibregl-ctrl-top-left .layers-control__panel,
+.maplibregl-ctrl-top-right .layers-control__panel {
+    top: 100%;
+    margin-top: 4px;
+}
+
+/* Bottom positions - panel appears above control */
+.maplibregl-ctrl-bottom-left .layers-control__panel,
+.maplibregl-ctrl-bottom-right .layers-control__panel {
+    bottom: 100%;
+    margin-bottom: 4px;
+    transform: translateY(10px);
+}
+
+.maplibregl-ctrl-bottom-left .layers-control__panel--open,
+.maplibregl-ctrl-bottom-right .layers-control__panel--open {
+    transform: translateY(0);
+}
+
+/* Right positions - panel aligns to right */
+.maplibregl-ctrl-top-right .layers-control__panel,
+.maplibregl-ctrl-bottom-right .layers-control__panel {
+    right: 0;
+}
+
+/* Left positions - panel aligns to left */
+.maplibregl-ctrl-top-left .layers-control__panel,
+.maplibregl-ctrl-bottom-left .layers-control__panel {
+    left: 0;
+}
+
+/* ==========================================================================
+   Sections
+   ========================================================================== */
+
+.layers-control__base-section,
+.layers-control__overlays-section {
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.layers-control__base-section:last-child,
+.layers-control__overlays-section:last-child {
+    border-bottom: none;
+}
+
+.layers-control__section-title {
+    font-weight: 600;
+    font-size: 12px;
+    color: #9d9d9d;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 8px 12px 4px;
+    margin: 0;
+    background: #f8f9fa;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.layers-control__base-list,
+.layers-control__overlays-list {
+    padding: 4px 0;
+}
+
+/* ==========================================================================
+   Base Layer Items
+   ========================================================================== */
+
+.layers-control__base-item {
+    display: flex;
+    align-items: center;
+    padding: 6px 12px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: background-color 0.2s ease;
+    border: none;
+    background: none;
+    width: 100%;
+}
+
+.layers-control__base-item:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+.layers-control__base-item--active {
+    background-color: rgba(0, 124, 186, 0.1);
+    color: #007cba;
+    font-weight: 500;
+}
+
+.layers-control__base-item input[type="radio"] {
+    margin-right: 8px;
+    cursor: pointer;
+    accent-color: #007cba;
+}
+
+/* ==========================================================================
+   Group Styles
+   ========================================================================== */
+
+.layers-control__group {
+    margin: 4px 0;
+}
+
+.layers-control__group-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 12px;
+    background-color: rgba(0, 0, 0, 0.02);
+    border-top: 1px solid #f0f0f0;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.layers-control__group-toggle {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    flex: 1;
+}
+
+.layers-control__group-toggle input[type="checkbox"] {
+    margin-right: 8px;
+    cursor: pointer;
+    accent-color: #007cba;
+}
+
+.layers-control__group-overlays {
+    background-color: rgba(0, 0, 0, 0.01);
+}
+
+/* ==========================================================================
+   Overlay Items
+   ========================================================================== */
+
+.layers-control__overlay-item {
+    padding: 6px 12px;
+    transition: background-color 0.2s ease;
+    border-left: 3px solid transparent;
+}
+
+.layers-control__overlay-item:hover {
+    background-color: rgba(0, 0, 0, 0.03);
+}
+
+.layers-control__overlay-item--loading {
+    border-left-color: #007cba;
+    background-color: rgba(0, 124, 186, 0.05);
+}
+
+.layers-control__overlay-toggle {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    font-size: 13px;
+    width: 100%;
+    margin-bottom: 4px;
+}
+
+.layers-control__overlay-toggle input[type="checkbox"] {
+    margin-right: 8px;
+    cursor: pointer;
+    accent-color: #007cba;
+}
+
+.layers-control__overlay-toggle input[type="checkbox"]:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.layers-control__label {
+    flex: 1;
+    user-select: none;
+}
+
+.layers-control__loading {
+    margin-left: 8px;
+    font-size: 12px;
+    color: #007cba;
+    animation: layers-control-spin 1s linear infinite;
+}
+
+@keyframes layers-control-spin {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* ==========================================================================
+   Opacity Controls
+   ========================================================================== */
+
+.layers-control__opacity-control {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    margin-left: 20px;
+    padding-top: 5px;
+}
+
+.layers-control__opacity-label {
+    font-size: 11px;
+    color: #666;
+    font-weight: 500;
+    min-width: 35px;
+    text-align: right;
+}
+
+.layers-control__opacity-slider {
+    flex: 1;
+    max-width: 100px;
+    height: 4px;
+    background: #ddd;
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+    margin-left: 20px;
+    transition: background 0.2s ease;
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+.layers-control__opacity-slider:hover {
+    background: #bbb;
+}
+
+.layers-control__opacity-slider:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.layers-control__opacity-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #007cba;
+    cursor: pointer;
+    border: 2px solid white;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+    transition: all 0.2s ease;
+}
+
+.layers-control__opacity-slider::-webkit-slider-thumb:hover {
+    background: #005a8a;
+    transform: scale(1.1);
+}
+
+.layers-control__opacity-slider::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #007cba;
+    cursor: pointer;
+    border: 2px solid white;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+    transition: all 0.2s ease;
+}
+
+.layers-control__opacity-slider::-moz-range-thumb:hover {
+    background: #005a8a;
+    transform: scale(1.1);
+}
+
+/* ==========================================================================
+   Error States
+   ========================================================================== */
+
+.layers-control__error {
+    margin-top: 4px;
+    padding: 6px 8px;
+    background-color: #fff5f5;
+    border: 1px solid #fed7d7;
+    border-radius: 3px;
+    font-size: 11px;
+}
+
+.layers-control__error-message {
+    color: #c53030;
+    display: block;
+    margin-bottom: 4px;
+    line-height: 1.3;
+}
+
+.layers-control__retry-button {
+    background: #e53e3e;
+    color: white;
+    border: none;
+    border-radius: 2px;
+    padding: 2px 6px;
+    font-size: 10px;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.layers-control__retry-button:hover {
+    background: #c53030;
+}
+
+/* ==========================================================================
+   Responsive Design
+   ========================================================================== */
+
+@media (max-width: 480px) {
+    .layers-control__panel {
+        min-width: 180px;
+        max-width: 250px;
+        max-height: 60dvh;
+    }
+
+    .layers-control__section-title {
+        font-size: 11px;
+        padding: 6px 10px 3px;
+    }
+
+    .layers-control__base-item,
+    .layers-control__overlay-toggle,
+    .layers-control__group-toggle {
+        font-size: 12px;
+        padding: 5px 10px;
+    }
+
+    .layers-control__opacity-slider {
+        max-width: 100px;
+        margin-left: 16px;
+    }
+}
+
+/* ==========================================================================
+   Accessibility Improvements
+   ========================================================================== */
+
+.layers-control__toggle:focus,
+.layers-control__base-item:focus,
+.layers-control__overlay-toggle:focus,
+.layers-control__group-toggle:focus {
+    outline: 2px solid #007cba;
+    outline-offset: -2px;
+}
+
+.layers-control__opacity-slider:focus {
+    outline: 2px solid #007cba;
+    outline-offset: 2px;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+    .layers-control__panel {
+        border: 2px solid #000;
+    }
+
+    .layers-control__section-title {
+        border-bottom: 2px solid #000;
+    }
+
+    .layers-control__base-item--active {
+        border: 2px solid #007cba;
+    }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+
+    .layers-control__panel,
+    .layers-control__toggle,
+    .layers-control__base-item,
+    .layers-control__overlay-item,
+    .layers-control__opacity-slider::-webkit-slider-thumb,
+    .layers-control__opacity-slider::-moz-range-thumb,
+    .layers-control__retry-button {
+        transition: none;
+    }
+
+    .layers-control__loading {
+        animation: none;
+    }
+}
+
+/* ==========================================================================
+   Dark Theme Support
+   ========================================================================== */
+
+@media (prefers-color-scheme: dark) {
+
+    .layers-control-container,
+    .layers-control__panel {
+        background: #2d3748;
+        color: #e2e8f0;
+        box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.1);
+    }
+
+    .layers-control__panel {
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+    }
+
+    .layers-control__toggle {
+        color: #e2e8f0;
+    }
+
+    .layers-control__toggle:hover {
+        background-color: rgba(255, 255, 255, 0.1);
+    }
+
+    .layers-control__section-title {
+        background: #4a5568;
+        color: #a0aec0;
+        border-bottom-color: #2d3748;
+    }
+
+    .layers-control__base-item:hover,
+    .layers-control__overlay-item:hover {
+        background-color: rgba(255, 255, 255, 0.1);
+    }
+
+    .layers-control__base-item--active {
+        background-color: rgba(0, 124, 186, 0.3);
+        color: #63b3ed;
+    }
+
+    .layers-control__group-header {
+        background-color: rgba(255, 255, 255, 0.05);
+        border-color: #4a5568;
+    }
+
+    .layers-control__group-overlays {
+        background-color: rgba(255, 255, 255, 0.02);
+    }
+
+    .layers-control__overlay-item--loading {
+        background-color: rgba(0, 124, 186, 0.2);
+    }
+
+    .layers-control__opacity-slider {
+        background: #4a5568;
+    }
+
+    .layers-control__opacity-slider:hover {
+        background: #718096;
+    }
+
+    .layers-control__error {
+        background-color: rgba(254, 178, 178, 0.1);
+        border-color: rgba(254, 215, 215, 0.3);
+    }
+}
+
+/* ==========================================================================
+   Print Styles
+   ========================================================================== */
+
+@media print {
+
+    .layers-control-container,
+    .layers-control__panel {
+        display: none;
+    }
+}

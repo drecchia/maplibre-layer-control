@@ -1,6 +1,6 @@
 {
     "name": "@drecchia/maplibre-layer-control",
-    "version": "1.1.0",
+    "version": "2.1.0",
     "author": "Danilo T Recchia",
     "main": "dist/js/all.min.js",
     "files": [
