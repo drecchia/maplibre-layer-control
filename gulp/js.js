@@ -10,7 +10,10 @@ exports.all = (cb) => {
 
 const dist = {
     'files': [
-        'src/js/main.js',
+        'src/js/helper.js',
+        'src/js/stateManager.js',
+        'src/js/uiManager.js',
+        'src/js/layersControl.js',
     ],
     'outputFolder': 'dist/js',
 }

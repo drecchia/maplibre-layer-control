@@ -13,7 +13,7 @@ exports.all = (cb) => {
 
 const dist = {
     'files': [
-        'src/css/main.css',
+        'src/css/uiManager.css',
     ],
     'outputFolder': 'dist/css',
 }
