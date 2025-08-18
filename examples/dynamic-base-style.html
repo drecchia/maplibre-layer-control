@@ -7,7 +7,7 @@
   <!-- MapLibre GL CSS -->
   <link href="https://unpkg.com/maplibre-gl@4.1.1/dist/maplibre-gl.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/deck.gl@9.1.14/dist/stylesheet.min.css">
-  <link href="../src/css/main.css" rel="stylesheet">
+  <link href="../dist/css/all.css" rel="stylesheet">
   <style>
     html, body, #map { height: 100%; margin: 0; padding: 0; }
     #map { width: 100vw; height: 100vh; }
@@ -64,7 +64,7 @@
   <!-- Deck.gl CDN -->
   <script src="https://cdn.jsdelivr.net/npm/deck.gl@9.1.14/dist.min.js"></script>
   <!-- LayersControl JS -->
-  <script src="../src/js/main.js"></script>
+  <script src="../dist/js/all.min.js"></script>
   <script>
     // Start with only OSM
     const baseStyles = [
@@ -121,13 +121,18 @@
     // Add Satellite base layer
     document.getElementById('add-baselayer').onclick = function() {
         if (!layersControl.options.baseStyles.find(b => b.id === satelliteBase.id)) {
-            layersControl.addBaseStyle(satelliteBase);
+            layersControl.options.baseStyles.push(satelliteBase);
+            layersControl.uiManager.updateBaseStyles();
         }
     };
 
     // Remove Satellite base layer
     document.getElementById('remove-baselayer').onclick = function() {
-        layersControl.removeBaseStyle(satelliteBase.id);
+        const idx = layersControl.options.baseStyles.findIndex(b => b.id === satelliteBase.id);
+        if (idx !== -1) {
+            layersControl.options.baseStyles.splice(idx, 1);
+            layersControl.uiManager.updateBaseStyles();
+        }
     };
   </script>
 </body>

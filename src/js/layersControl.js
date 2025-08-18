@@ -209,9 +209,11 @@ class LayersControl {
         
         // Clear UI manager caches
         this.uiManager.deckLayers.clear();
-        this.uiManager.dynamicOverlayCache.clear();
+        this.uiManager.overlayToLayerIds.clear();
+        this.uiManager.overlayCache.clear();
         this.uiManager.loadingStates.clear();
         this.uiManager.errorStates.clear();
+        this.uiManager.zoomFilteredOverlays.clear();
         
         // Re-render UI
         this.uiManager.updateOverlays();
@@ -232,10 +234,8 @@ class LayersControl {
         // Update configuration
         this.options.overlays[overlayIndex] = { ...this.options.overlays[overlayIndex], ...updates };
         
-        // Clear dynamic cache if renderOnClick changed
-        if (updates.renderOnClick) {
-            this.uiManager.dynamicOverlayCache.delete(id);
-        }
+        // Clear overlay cache if configuration changed
+        this.uiManager.overlayCache.delete(id);
         
         // Re-render UI
         this.uiManager.updateOverlays();

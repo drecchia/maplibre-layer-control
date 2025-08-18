@@ -219,7 +219,9 @@
                 id: 'detailed-markers',
                 label: 'Detailed Markers (Zoom > 14)',
                 group: 'Detail',
-                minZoomLevel: 14,
+                filter: {
+                    minZoom: 14
+                },
                 defaultVisible: false,
                 deckLayers: [
                     {
@@ -243,13 +245,14 @@
                 id: 'central-park-view',
                 label: 'Central Park (3D View)',
                 group: 'Views',
-                forcedPitch: 45,
-                forcedBearing: 30,
-                fitBounds: [
-                    [-73.9812, 40.7679], // Southwest corner of Central Park
-                    [-73.9441, 40.8007]  // Northeast corner of Central Park
-                ],
-                panOnAdd: true,
+                viewport: {
+                    pitch: 45,
+                    bearing: 30,
+                    fitBounds: [
+                        [-73.9812, 40.7679], // Southwest corner of Central Park
+                        [-73.9441, 40.8007]  // Northeast corner of Central Park
+                    ]
+                },
                 deckLayers: [
                     {
                         id: 'park-boundary',
@@ -345,7 +348,7 @@
                                     type: 'TextLayer',
                                     props: {
                                         data: [
-                                            { position: [-74.006, 40.7128], text: "NYC", size: 24 },
+                                            { position: [-74.006, 40.7128], text: "Times Sq", size: 16 },
                                             { position: [-74.0445, 40.6892], text: "Liberty", size: 18 }
                                         ],
                                         getPosition: d => d.position,
@@ -356,8 +359,10 @@
                                 }
                             ],
                             label: 'Adaptive Layer (Detailed)',
-                            forcedPitch: 0,
-                            forcedBearing: 0
+                            viewport: {
+                                pitch: 0,
+                                bearing: 0
+                            }
                         };
                     } else {
                         // Summary view with different viewport
@@ -378,12 +383,14 @@
                                 }
                             ],
                             label: 'Adaptive Layer (Summary)',
-                            forcedPitch: 45,
-                            forcedBearing: 30,
-                            fitBounds: [
-                                [-74.1, 40.6], 
-                                [-73.9, 40.8]
-                            ]
+                            viewport: {
+                                pitch: 45,
+                                bearing: 30,
+                                fitBounds: [
+                                    [-74.1, 40.6], 
+                                    [-73.9, 40.8]
+                                ]
+                            }
                         };
                     }
                     
@@ -393,6 +400,34 @@
                         applyViewport: true 
                     });
                 }
+            },
+
+            // Example demonstrating filter capabilities
+            {
+                id: 'zoom-filtered-overlay',
+                label: 'Mid-Zoom Layer (Z: 8-15)',
+                group: 'Advanced', 
+                filter: {
+                    minZoom: 8,
+                    maxZoom: 15
+                },
+                defaultVisible: false,
+                deckLayers: [
+                    {
+                        id: 'zoom-filtered-layer',
+                        type: 'ScatterplotLayer',
+                        props: {
+                            data: [
+                                { position: [-74.006, 40.7128], color: [255, 165, 0] },
+                                { position: [-74.0445, 40.6892], color: [255, 165, 0] },
+                                { position: [-73.9857, 40.7484], color: [255, 165, 0] }
+                            ],
+                            getPosition: d => d.position,
+                            getFillColor: d => d.color,
+                            getRadius: 100
+                        }
+                    }
+                ]
             }
         ];
 

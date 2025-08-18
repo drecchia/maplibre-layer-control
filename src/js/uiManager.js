@@ -534,17 +534,29 @@ class UIManager {
         };
     }
 
+    // Helper function to extract filter configuration from overlay
+    _getFilterConfig(overlay) {
+        // Support both old format (for backward compatibility) and new filter object
+        const filter = overlay.filter || {};
+        
+        return {
+            minZoom: filter.minZoom !== undefined ? filter.minZoom : overlay.minZoomLevel,
+            maxZoom: filter.maxZoom !== undefined ? filter.maxZoom : overlay.maxZoomLevel
+        };
+    }
+
     // Zoom Constraints System
     _checkZoomConstraints(overlay) {
         if (!this.map) return true;
         
         const currentZoom = this.map.getZoom();
+        const filterConfig = this._getFilterConfig(overlay);
         
-        if (overlay.minZoomLevel !== undefined && currentZoom < overlay.minZoomLevel) {
+        if (filterConfig.minZoom !== undefined && currentZoom < filterConfig.minZoom) {
             return false;
         }
         
-        if (overlay.maxZoomLevel !== undefined && currentZoom >= overlay.maxZoomLevel) {
+        if (filterConfig.maxZoom !== undefined && currentZoom >= filterConfig.maxZoom) {
             return false;
         }
         
@@ -589,6 +601,29 @@ class UIManager {
                 }
             }
         });
+    }
+
+    // Helper function to extract viewport configuration from overlay
+    _getViewportConfig(overlay) {
+        // Support both old format (for backward compatibility) and new viewport object
+        const viewport = overlay.viewport || {};
+        
+        // Only return viewport config if viewport object exists or legacy properties exist
+        const hasViewportConfig = overlay.viewport || overlay.fitBounds || overlay.forcedCenter || 
+                                  overlay.panZoom !== undefined || overlay.forcedBearing !== undefined || 
+                                  overlay.forcedPitch !== undefined;
+        
+        if (!hasViewportConfig) {
+            return null; // No viewport configuration
+        }
+        
+        return {
+            fitBounds: viewport.fitBounds || overlay.fitBounds,
+            center: viewport.center || overlay.forcedCenter,
+            zoom: viewport.zoom || overlay.panZoom,
+            bearing: viewport.bearing || overlay.forcedBearing,
+            pitch: viewport.pitch || overlay.forcedPitch
+        };
     }
 
     // Map Integration Methods
@@ -665,41 +700,46 @@ class UIManager {
             }
             
             // Handle viewport changes with proper coordination
-            if (isUserInteraction && (overlay.fitBounds || overlay.forcedBearing !== undefined || overlay.forcedPitch !== undefined || overlay.panOnAdd)) {
-                const viewportChanges = {};
+            if (isUserInteraction) {
+                const viewportConfig = this._getViewportConfig(overlay);
                 
-                // Calculate center and zoom from fitBounds if provided
-                if (overlay.fitBounds) {
-                    const boundsCenter = BoundsHelper.calculateBoundsCenter(overlay.fitBounds);
-                    const mapContainer = this.map.getContainer();
-                    const boundsZoom = BoundsHelper.calculateBoundsZoom(overlay.fitBounds, {
-                        width: mapContainer.offsetWidth,
-                        height: mapContainer.offsetHeight
-                    });
+                if (viewportConfig) {
+                    const viewportChanges = {};
                     
-                    viewportChanges.center = boundsCenter;
-                    viewportChanges.zoom = boundsZoom;
-                } else if (overlay.panOnAdd && overlay.deckLayers) {
-                    // Calculate pan center if no fitBounds but panOnAdd is enabled
-                    const panCenter = BoundsHelper.calculatePanCenter(overlay);
-                    if (panCenter) {
-                        viewportChanges.center = panCenter;
-                        viewportChanges.zoom = overlay.panZoom || 12;
+                    // Calculate center and zoom from fitBounds if provided
+                    if (viewportConfig.fitBounds) {
+                        const boundsCenter = BoundsHelper.calculateBoundsCenter(viewportConfig.fitBounds);
+                        const mapContainer = this.map.getContainer();
+                        const boundsZoom = BoundsHelper.calculateBoundsZoom(viewportConfig.fitBounds, {
+                            width: mapContainer.offsetWidth,
+                            height: mapContainer.offsetHeight
+                        });
+                        
+                        viewportChanges.center = boundsCenter;
+                        viewportChanges.zoom = boundsZoom;
+                    } else {
+                        // Use explicit center and zoom if provided
+                        if (viewportConfig.center) {
+                            viewportChanges.center = viewportConfig.center;
+                        }
+                        if (viewportConfig.zoom !== undefined) {
+                            viewportChanges.zoom = viewportConfig.zoom;
+                        }
                     }
-                }
-                
-                // Add bearing and pitch if specified
-                if (overlay.forcedBearing !== undefined) {
-                    viewportChanges.bearing = overlay.forcedBearing;
-                }
-                if (overlay.forcedPitch !== undefined) {
-                    viewportChanges.pitch = overlay.forcedPitch;
-                }
-                
-                // Apply all changes in one smooth animation
-                if (Object.keys(viewportChanges).length > 0) {
-                    viewportChanges.duration = 1000; // 1 second animation
-                    this.map.flyTo(viewportChanges);
+                    
+                    // Add bearing and pitch if specified
+                    if (viewportConfig.bearing !== undefined) {
+                        viewportChanges.bearing = viewportConfig.bearing;
+                    }
+                    if (viewportConfig.pitch !== undefined) {
+                        viewportChanges.pitch = viewportConfig.pitch;
+                    }
+                    
+                    // Apply all changes in one smooth animation
+                    if (Object.keys(viewportChanges).length > 0) {
+                        viewportChanges.duration = 1000; // 1 second animation
+                        this.map.flyTo(viewportChanges);
+                    }
                 }
             }
 
@@ -852,7 +892,8 @@ class UIManager {
                     const firstPoint = firstLayer.props.data[0];
                     if (firstPoint.position) {
                         const [lng, lat] = firstPoint.position;
-                        const targetZoom = overlay.panZoom || 12;
+                        const viewportConfig = this._getViewportConfig(overlay);
+                        const targetZoom = viewportConfig.zoom || 12;
                         
                         this.map.flyTo({
                             center: [lng, lat],
@@ -1051,8 +1092,15 @@ class UIManager {
                 }
 
                 // Handle viewport changes if specified
-                if (options.applyViewport && (newConfig.fitBounds || newConfig.forcedPitch !== undefined || newConfig.forcedBearing !== undefined)) {
-                    this._applyViewportChanges(overlay, options.applyViewport);
+                if (options.applyViewport) {
+                    const hasViewportChanges = newConfig.viewport || 
+                        newConfig.fitBounds || newConfig.forcedPitch !== undefined || 
+                        newConfig.forcedBearing !== undefined || newConfig.forcedCenter || 
+                        newConfig.panZoom !== undefined;
+                    
+                    if (hasViewportChanges) {
+                        this._applyViewportChanges(overlay, options.applyViewport);
+                    }
                 }
             }
 
@@ -1102,28 +1150,35 @@ class UIManager {
     _applyViewportChanges(overlay, applyViewport) {
         if (!this.map) return;
 
+        const viewportConfig = this._getViewportConfig(overlay);
         const changes = {};
         
         // Calculate center and zoom from fitBounds if provided
-        if (overlay.fitBounds) {
-            const boundsCenter = BoundsHelper.calculateBoundsCenter(overlay.fitBounds);
+        if (viewportConfig.fitBounds) {
+            const boundsCenter = BoundsHelper.calculateBoundsCenter(viewportConfig.fitBounds);
             const mapContainer = this.map.getContainer();
-            const boundsZoom = BoundsHelper.calculateBoundsZoom(overlay.fitBounds, {
+            const boundsZoom = BoundsHelper.calculateBoundsZoom(viewportConfig.fitBounds, {
                 width: mapContainer.offsetWidth,
                 height: mapContainer.offsetHeight
             });
             
             changes.center = boundsCenter;
             changes.zoom = boundsZoom;
+        } else if (viewportConfig.center) {
+            // Use explicit center if provided
+            changes.center = viewportConfig.center;
+            if (viewportConfig.zoom !== undefined) {
+                changes.zoom = viewportConfig.zoom;
+            }
         }
         
         // Add bearing and pitch if specified
-        if (overlay.forcedBearing !== undefined) {
-            changes.bearing = overlay.forcedBearing;
+        if (viewportConfig.bearing !== undefined) {
+            changes.bearing = viewportConfig.bearing;
         }
         
-        if (overlay.forcedPitch !== undefined) {
-            changes.pitch = overlay.forcedPitch;
+        if (viewportConfig.pitch !== undefined) {
+            changes.pitch = viewportConfig.pitch;
         }
         
         // Apply all changes in one smooth animation
