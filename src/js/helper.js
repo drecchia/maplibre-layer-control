@@ -50,4 +50,83 @@ class BoundsHelper {
             [maxLng + paddingRight, maxLat + paddingTop]
         ];
     }
+
+    /**
+     * Calculate the center point of a bounding box
+     * @param {Array<[number, number]>} bounds - Bounding box as [[minLng, minLat], [maxLng, maxLat]]
+     * @returns {[number, number]} Center point as [lng, lat]
+     */
+    static calculateBoundsCenter(bounds) {
+        if (!bounds || !Array.isArray(bounds) || bounds.length !== 2) {
+            throw new Error('Bounds must be an array with two coordinate pairs');
+        }
+        
+        const minLng = bounds[0][0];
+        const minLat = bounds[0][1];
+        const maxLng = bounds[1][0];
+        const maxLat = bounds[1][1];
+        
+        return [(minLng + maxLng) / 2, (minLat + maxLat) / 2];
+    }
+
+    /**
+     * Calculate appropriate zoom level to fit bounds in a container
+     * @param {Array<[number, number]>} bounds - Bounding box as [[minLng, minLat], [maxLng, maxLat]]
+     * @param {Object} container - Container with width and height properties
+     * @param {number} container.width - Container width in pixels
+     * @param {number} container.height - Container height in pixels
+     * @param {number} padding - Additional padding factor (default: 0.5)
+     * @returns {number} Calculated zoom level (clamped between 1 and 20)
+     */
+    static calculateBoundsZoom(bounds, container, padding = 0.5) {
+        if (!bounds || !Array.isArray(bounds) || bounds.length !== 2) {
+            throw new Error('Bounds must be an array with two coordinate pairs');
+        }
+        
+        if (!container || typeof container.width !== 'number' || typeof container.height !== 'number') {
+            throw new Error('Container must have numeric width and height properties');
+        }
+        
+        // Calculate bounds dimensions
+        const minLng = bounds[0][0];
+        const minLat = bounds[0][1];
+        const maxLng = bounds[1][0];
+        const maxLat = bounds[1][1];
+        
+        const lngDiff = maxLng - minLng;
+        const latDiff = maxLat - minLat;
+        
+        // Calculate zoom level to fit bounds
+        // This is a simplified calculation - MapLibre's fitBounds uses more sophisticated math
+        const lngZoom = Math.log2(360 / lngDiff) - Math.log2(container.width / 256);
+        const latZoom = Math.log2(180 / latDiff) - Math.log2(container.height / 256);
+        
+        // Use the smaller zoom to ensure both dimensions fit, with padding
+        const calculatedZoom = Math.min(lngZoom, latZoom) - padding;
+        
+        // Clamp to reasonable bounds
+        return Math.max(1, Math.min(20, calculatedZoom));
+    }
+
+    /**
+     * Calculate center point from deck layer data (for panning functionality)
+     * @param {Object} overlay - Overlay configuration object
+     * @returns {[number, number]|null} Center point as [lng, lat] or null if not found
+     */
+    static calculatePanCenter(overlay) {
+        try {
+            if (overlay.deckLayers && overlay.deckLayers.length > 0) {
+                const firstLayer = overlay.deckLayers[0];
+                if (firstLayer.props && firstLayer.props.data && firstLayer.props.data.length > 0) {
+                    const firstPoint = firstLayer.props.data[0];
+                    if (firstPoint.position) {
+                        return firstPoint.position; // [lng, lat]
+                    }
+                }
+            }
+        } catch (error) {
+            console.error(`Failed to calculate pan center for overlay ${overlay.id}:`, error);
+        }
+        return null;
+    }
 }

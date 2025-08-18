@@ -20,10 +20,12 @@ class UIManager {
         // Overlay management - MATCH OLD PATTERN
         this.deckLayers = new Map(); // Store individual layers by layer ID (not overlay ID)
         this.overlayToLayerIds = new Map(); // Track which layer IDs belong to each overlay
-        this.dynamicOverlayCache = new Map();
         this.loadingStates = new Map();
         this.errorStates = new Map();
         this.zoomFilteredOverlays = new Set();
+        
+        // New overlay cache system (per-overlay caching)
+        this.overlayCache = new Map(); // overlayId -> value
         
         // Bind methods
         this._handleToggleClick = this._handleToggleClick.bind(this);
@@ -329,13 +331,24 @@ class UIManager {
     handleToggleOverlay(overlayId) {
         const overlayState = this.stateManager.get('overlays')[overlayId];
         const newVisibility = !overlayState?.visible;
+        const overlay = this.options.overlays.find(o => o.id === overlayId);
         
         this.stateManager.setOverlayVisibility(overlayId, newVisibility);
         
         if (newVisibility) {
             this._activateOverlay(overlayId, true);
+            
+            // Call onChecked callback if provided
+            if (overlay && typeof overlay.onChecked === 'function') {
+                this._callOverlayCallback(overlay.onChecked, overlayId, overlay, true);
+            }
         } else {
             this._deactivateOverlay(overlayId);
+            
+            // Call onUnchecked callback if provided
+            if (overlay && typeof overlay.onUnchecked === 'function') {
+                this._callOverlayCallback(overlay.onUnchecked, overlayId, overlay, true);
+            }
         }
         
         this._updateOverlayUI(overlayId);
@@ -354,8 +367,18 @@ class UIManager {
                 this.stateManager.setOverlayVisibility(overlay.id, newVisibility);
                 if (newVisibility) {
                     this._activateOverlay(overlay.id, true);
+                    
+                    // Call onChecked callback if provided
+                    if (overlay && typeof overlay.onChecked === 'function') {
+                        this._callOverlayCallback(overlay.onChecked, overlay.id, overlay, true);
+                    }
                 } else {
                     this._deactivateOverlay(overlay.id);
+                    
+                    // Call onUnchecked callback if provided
+                    if (overlay && typeof overlay.onUnchecked === 'function') {
+                        this._callOverlayCallback(overlay.onUnchecked, overlay.id, overlay, true);
+                    }
                 }
                 this._updateOverlayUI(overlay.id);
             });
@@ -628,41 +651,6 @@ class UIManager {
         this._setLoadingState(overlayId, true);
         
         try {
-            // Handle renderOnClick overlays
-            if (overlay.renderOnClick) {
-                if (!this.dynamicOverlayCache.has(overlayId)) {
-                    const context = {
-                        map: this.map,
-                        overlayManager: this,
-                        stateManager: this.stateManager,
-                        overlayId: overlayId,
-                        overlay: overlay,
-                        isUserInteraction: isUserInteraction,
-                        deckOverlay: this.deckOverlay,
-                        getCurrentViewport: () => ({
-                            center: [this.map.getCenter().lng, this.map.getCenter().lat],
-                            zoom: this.map.getZoom(),
-                            bearing: this.map.getBearing(),
-                            pitch: this.map.getPitch()
-                        }),
-                        getOverlayState: (id) => this.stateManager.get('overlays')[id],
-                        getAllOverlayStates: () => this.stateManager.get('overlays')
-                    };
-                    
-                    const result = await overlay.renderOnClick(context);
-                    if (!result || !result.deckLayers) {
-                        throw new Error('renderOnClick must return {deckLayers}');
-                    }
-                    
-                    this.dynamicOverlayCache.set(overlayId, result);
-                }
-                
-                const cachedResult = this.dynamicOverlayCache.get(overlayId);
-                if (cachedResult) {
-                    overlay = { ...overlay, deckLayers: cachedResult.deckLayers };
-                }
-            }
-            
             // Handle forced base layer
             const shouldForceBase = isUserInteraction || (overlay.forcedBaseLayerId !== undefined);
             if (shouldForceBase && overlay.forcedBaseLayerId) {
@@ -676,59 +664,45 @@ class UIManager {
                 }
             }
             
-            // Handle fitBounds first if enabled
-            if (isUserInteraction && overlay.fitBounds) {
-                this.map.fitBounds(overlay.fitBounds);
+            // Handle viewport changes with proper coordination
+            if (isUserInteraction && (overlay.fitBounds || overlay.forcedBearing !== undefined || overlay.forcedPitch !== undefined || overlay.panOnAdd)) {
+                const viewportChanges = {};
                 
-                // Apply forced bearing/pitch after fitBounds
-                if (overlay.forcedBearing !== undefined || overlay.forcedPitch !== undefined) {
-                    setTimeout(() => {
-                        const viewportChanges = {};
-                        if (overlay.forcedBearing !== undefined) {
-                            viewportChanges.bearing = overlay.forcedBearing;
-                        }
-                        if (overlay.forcedPitch !== undefined) {
-                            viewportChanges.pitch = overlay.forcedPitch;
-                        }
-                        
-                        if (Object.keys(viewportChanges).length > 0) {
-                            this.map.jumpTo(viewportChanges);
-                        }
-                    }, 1000);
-                }
-            } else {
-                // Handle forced viewport changes
-                const shouldForceViewport = isUserInteraction || 
-                    (overlay.forcedBearing !== undefined || overlay.forcedPitch !== undefined);
-                if (shouldForceViewport && 
-                    (overlay.forcedBearing !== undefined || overlay.forcedPitch !== undefined)) {
-                    const viewportChanges = {};
+                // Calculate center and zoom from fitBounds if provided
+                if (overlay.fitBounds) {
+                    const boundsCenter = BoundsHelper.calculateBoundsCenter(overlay.fitBounds);
+                    const mapContainer = this.map.getContainer();
+                    const boundsZoom = BoundsHelper.calculateBoundsZoom(overlay.fitBounds, {
+                        width: mapContainer.offsetWidth,
+                        height: mapContainer.offsetHeight
+                    });
                     
-                    if (overlay.forcedBearing !== undefined) {
-                        viewportChanges.bearing = overlay.forcedBearing;
-                    }
-                    if (overlay.forcedPitch !== undefined) {
-                        viewportChanges.pitch = overlay.forcedPitch;
-                    }
-                    
-                    if (Object.keys(viewportChanges).length > 0) {
-                        this.map.jumpTo(viewportChanges);
+                    viewportChanges.center = boundsCenter;
+                    viewportChanges.zoom = boundsZoom;
+                } else if (overlay.panOnAdd && overlay.deckLayers) {
+                    // Calculate pan center if no fitBounds but panOnAdd is enabled
+                    const panCenter = BoundsHelper.calculatePanCenter(overlay);
+                    if (panCenter) {
+                        viewportChanges.center = panCenter;
+                        viewportChanges.zoom = overlay.panZoom || 12;
                     }
                 }
-            }
-            
-            // Handle pan if enabled
-            if (isUserInteraction && !overlay.fitBounds && overlay.panOnAdd && overlay.deckLayers) {
-                const delay = (overlay.forcedBearing !== undefined || overlay.forcedPitch !== undefined) ? 300 : 100;
                 
-                setTimeout(() => {
-                    this._panToDeckOverlay(overlay);
-                    setTimeout(() => {
-                        this.updateAllZoomFiltering();
-                    }, 1100);
-                }, delay);
+                // Add bearing and pitch if specified
+                if (overlay.forcedBearing !== undefined) {
+                    viewportChanges.bearing = overlay.forcedBearing;
+                }
+                if (overlay.forcedPitch !== undefined) {
+                    viewportChanges.pitch = overlay.forcedPitch;
+                }
+                
+                // Apply all changes in one smooth animation
+                if (Object.keys(viewportChanges).length > 0) {
+                    viewportChanges.duration = 1000; // 1 second animation
+                    this.map.flyTo(viewportChanges);
+                }
             }
-            
+
             // Check zoom constraints before showing layers
             const shouldBeVisible = this._updateZoomFiltering(overlayId);
             
@@ -976,6 +950,189 @@ class UIManager {
         groupElement.checked = groupState?.visible || false;
     }
 
+    // Helper method to call overlay callbacks with context
+    _callOverlayCallback(callback, overlayId, overlay, isUserInteraction) {
+        try {
+            const context = {
+                map: this.map,
+                overlayManager: this,
+                stateManager: this.stateManager,
+                overlayId: overlayId,
+                overlay: overlay,
+                isUserInteraction: isUserInteraction,
+                deckOverlay: this.deckOverlay,
+                getCurrentViewport: () => ({
+                    center: [this.map.getCenter().lng, this.map.getCenter().lat],
+                    zoom: this.map.getZoom(),
+                    bearing: this.map.getBearing(),
+                    pitch: this.map.getPitch()
+                }),
+                getOverlayState: (id) => this.stateManager.get('overlays')[id],
+                getAllOverlayStates: () => this.stateManager.get('overlays'),
+                // New Configuration API
+                getOverlayConfig: () => {
+                    return this.options.overlays.find(o => o.id === overlayId);
+                },
+                setOverlayConfig: (config, options = {}) => {
+                    this._setOverlayConfig(overlayId, config, options);
+                },
+                // New Caching API - using overlayId as key namespace
+                getCache: () => {
+                    return this.overlayCache.get(overlayId);
+                },
+                setCache: (value) => {
+                    this.overlayCache.set(overlayId, value);
+                },
+                clearCache: () => {
+                    this.overlayCache.delete(overlayId);
+                }
+            };
+            
+            const result = callback(context);
+            
+            // Handle async callbacks with loading states
+            if (result && typeof result.then === 'function') {
+                // Set loading state for async operations
+                this._setLoadingState(overlayId, true);
+                
+                result.then(() => {
+                    this._setLoadingState(overlayId, false);
+                    this.errorStates.delete(overlayId);
+                    this._updateOverlayUI(overlayId);
+                }).catch(error => {
+                    console.error(`Error in overlay callback for ${overlayId}:`, error);
+                    this._setLoadingState(overlayId, false);
+                    this.errorStates.set(overlayId, error.message);
+                    this._updateOverlayUI(overlayId);
+                });
+            }
+        } catch (error) {
+            console.error(`Error calling overlay callback for ${overlayId}:`, error);
+            this._setLoadingState(overlayId, false);
+            this.errorStates.set(overlayId, error.message);
+            this._updateOverlayUI(overlayId);
+        }
+    }
+
+    // Dynamic overlay configuration system
+    _setOverlayConfig(overlayId, newConfig, options = {}) {
+        const overlayIndex = this.options.overlays.findIndex(o => o.id === overlayId);
+        if (overlayIndex === -1) {
+            console.error(`Overlay '${overlayId}' not found for configuration update`);
+            return;
+        }
+
+        const overlay = this.options.overlays[overlayIndex];
+        const originalConfig = { ...overlay };
+
+        try {
+            // Update the overlay configuration
+            Object.assign(overlay, newConfig);
+
+            // Check if overlay is currently visible
+            const overlayState = this.stateManager.get('overlays')[overlayId];
+            if (overlayState?.visible) {
+                // Determine what changed if specified
+                const changedProperties = options.changedProperties;
+                
+                if (!changedProperties) {
+                    // Full reapply - deactivate and reactivate
+                    this._deactivateOverlay(overlayId);
+                    this._activateOverlay(overlayId, false);
+                } else {
+                    // Selective updates
+                    if (changedProperties.includes('deckLayers')) {
+                        this._updateOverlayLayers(overlayId);
+                    }
+                    if (changedProperties.includes('label')) {
+                        this._updateOverlayUI(overlayId);
+                        this.updateOverlays(); // Re-render UI for label changes
+                    }
+                }
+
+                // Handle viewport changes if specified
+                if (options.applyViewport && (newConfig.fitBounds || newConfig.forcedPitch !== undefined || newConfig.forcedBearing !== undefined)) {
+                    this._applyViewportChanges(overlay, options.applyViewport);
+                }
+            }
+
+        } catch (error) {
+            console.error(`Error applying overlay configuration for ${overlayId}:`, error);
+            
+            // Revert to original configuration
+            this.options.overlays[overlayIndex] = originalConfig;
+            
+            // If overlay was visible, reapply original config
+            const overlayState = this.stateManager.get('overlays')[overlayId];
+            if (overlayState?.visible) {
+                this._deactivateOverlay(overlayId);
+                this._activateOverlay(overlayId, false);
+            }
+        }
+    }
+
+    _updateOverlayLayers(overlayId) {
+        // Remove current layers
+        const layerIds = this.overlayToLayerIds.get(overlayId);
+        if (layerIds) {
+            layerIds.forEach(layerId => {
+                this.deckLayers.delete(layerId);
+            });
+        }
+
+        // Add new layers
+        const overlay = this.options.overlays.find(o => o.id === overlayId);
+        if (overlay && overlay.deckLayers) {
+            const newLayerIds = [];
+            
+            overlay.deckLayers.forEach(deckLayerDef => {
+                const layer = this._createDeckLayer(deckLayerDef, overlay);
+                if (layer) {
+                    this.deckLayers.set(deckLayerDef.id, layer);
+                    newLayerIds.push(deckLayerDef.id);
+                }
+            });
+            
+            this.overlayToLayerIds.set(overlayId, newLayerIds);
+        }
+
+        this._updateDeckOverlay();
+    }
+
+    _applyViewportChanges(overlay, applyViewport) {
+        if (!this.map) return;
+
+        const changes = {};
+        
+        // Calculate center and zoom from fitBounds if provided
+        if (overlay.fitBounds) {
+            const boundsCenter = BoundsHelper.calculateBoundsCenter(overlay.fitBounds);
+            const mapContainer = this.map.getContainer();
+            const boundsZoom = BoundsHelper.calculateBoundsZoom(overlay.fitBounds, {
+                width: mapContainer.offsetWidth,
+                height: mapContainer.offsetHeight
+            });
+            
+            changes.center = boundsCenter;
+            changes.zoom = boundsZoom;
+        }
+        
+        // Add bearing and pitch if specified
+        if (overlay.forcedBearing !== undefined) {
+            changes.bearing = overlay.forcedBearing;
+        }
+        
+        if (overlay.forcedPitch !== undefined) {
+            changes.pitch = overlay.forcedPitch;
+        }
+        
+        // Apply all changes in one smooth animation
+        if (Object.keys(changes).length > 0) {
+            changes.duration = 1000; // 1 second animation
+            this.map.flyTo(changes);
+        }
+    }
+
     // Public methods
     updateOverlays() {
         this._renderPanelContent();
@@ -996,7 +1153,7 @@ class UIManager {
         }
         
         this.options.overlays = this.options.overlays.filter(o => o.id !== overlayId);
-        this.dynamicOverlayCache.delete(overlayId);
+        this.overlayCache.delete(overlayId); // Clear overlay-specific cache
         this.loadingStates.delete(overlayId);
         this.errorStates.delete(overlayId);
         this.zoomFilteredOverlays.delete(overlayId);
@@ -1009,7 +1166,7 @@ class UIManager {
         this.overlayToLayerIds.clear();
         this._updateDeckOverlay();
         
-        this.dynamicOverlayCache.clear();
+        this.overlayCache.clear(); // Clear all overlay caches
         this.loadingStates.clear();
         this.errorStates.clear();
         this.zoomFilteredOverlays.clear();

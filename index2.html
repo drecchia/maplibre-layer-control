@@ -106,6 +106,14 @@
                         }
                     }
                 ],
+                onChecked: (context) => {
+                    console.log('Overlay activated!', context.overlayId);
+                    console.log('User interaction?', context.isUserInteraction);
+                    console.log('Current zoom:', context.getCurrentViewport().zoom);
+                },
+                onUnchecked: (context) => {
+                    console.log('Overlay deactivated!', context.overlayId);
+                },
                 tooltip: {
                     title: 'name',
                     fields: [
@@ -138,12 +146,27 @@
                 tooltip: 'name'
             },
 
-            // renderOnClick example - dynamically loads data
+            // Dynamic data loading example using new onChecked API
             {
                 id: 'dynamic-data',
                 label: 'Dynamic Points',
                 group: 'Dynamic',
-                renderOnClick: async (context) => {
+                defaultVisible: false,
+                opacityControls: true,
+                onChecked: async (context) => {
+                    // Check cache first
+                    const viewport = context.getCurrentViewport();
+                    
+                    let cachedData = context.getCache();
+                    if (cachedData) {
+                        console.log('Using cached dynamic data');
+                        context.setOverlayConfig({
+                            deckLayers: cachedData.deckLayers,
+                            label: `Dynamic Points (${cachedData.count} cached)`
+                        });
+                        return;
+                    }
+                    
                     // Simulate API call
                     console.log('Loading dynamic data...', context);
                     await new Promise(resolve => setTimeout(resolve, 1000));
@@ -159,24 +182,36 @@
                         color: [Math.random() * 255, Math.random() * 255, Math.random() * 255]
                     }));
 
-                    return {
-                        deckLayers: [
-                            {
-                                id: 'dynamic-points-layer',
-                                type: 'ScatterplotLayer',
-                                props: {
-                                    data: randomPoints,
-                                    getPosition: d => d.position,
-                                    getFillColor: d => d.color,
-                                    getRadius: 30,
-                                    radiusMinPixels: 5,
-                                    radiusMaxPixels: 15
-                                }
+                    const deckLayers = [
+                        {
+                            id: 'dynamic-points-layer',
+                            type: 'ScatterplotLayer',
+                            props: {
+                                data: randomPoints,
+                                getPosition: d => d.position,
+                                getFillColor: d => d.color,
+                                getRadius: 30,
+                                radiusMinPixels: 5,
+                                radiusMaxPixels: 15
                             }
-                        ]
-                    };
-                },
-                opacityControls: true
+                        }
+                    ];
+
+                    // Cache the result
+                    context.setCache({ deckLayers, count: randomPoints.length });
+
+                    // Update overlay configuration
+                    context.setOverlayConfig({
+                        deckLayers: deckLayers,
+                        label: `Dynamic Points (${randomPoints.length} loaded)`,
+                        tooltip: {
+                            title: 'name',
+                            fields: [
+                                { label: 'Position', property: 'position' }
+                            ]
+                        }
+                    });
+                }
             },
 
             // Layer with zoom constraints
@@ -235,6 +270,129 @@
                         }
                     }
                 ]
+            },
+
+            // Example overlay with callbacks
+            {
+                id: 'callback-example',
+                label: 'Callback Example Layer',
+                group: 'Examples',
+                defaultVisible: false,
+                opacityControls: true,
+                deckLayers: [
+                    {
+                        id: 'callback-example-layer',
+                        type: 'ScatterplotLayer',
+                        props: {
+                            data: [
+                                { position: [-74.0, 40.7], name: "Callback Point 1", color: [255, 0, 255] },
+                                { position: [-74.01, 40.71], name: "Callback Point 2", color: [255, 0, 255] }
+                            ],
+                            getPosition: d => d.position,
+                            getFillColor: d => d.color,
+                            getRadius: 100,
+                            radiusMinPixels: 5,
+                            radiusMaxPixels: 25
+                        }
+                    }
+                ],
+                onChecked: (context) => {
+                    console.log('🟢 Overlay checked!', {
+                        overlayId: context.overlayId,
+                        isUserInteraction: context.isUserInteraction,
+                        currentZoom: context.getCurrentViewport().zoom,
+                        overlayStates: context.getAllOverlayStates()
+                    });
+                },
+                onUnchecked: (context) => {
+                    console.log('🔴 Overlay unchecked!', {
+                        overlayId: context.overlayId,
+                        isUserInteraction: context.isUserInteraction,
+                        currentZoom: context.getCurrentViewport().zoom
+                    });
+                }
+            },
+
+            // Advanced example showing zoom-aware dynamic configuration
+            {
+                id: 'adaptive-layer',
+                label: 'Adaptive Data Layer',
+                group: 'Advanced',
+                defaultVisible: false,
+                opacityControls: true,
+                onChecked: async (context) => {
+                    const viewport = context.getCurrentViewport();
+                    const cacheKey = `adaptive_${viewport.zoom > 12 ? 'detailed' : 'summary'}`;
+                    
+                    // Check cache
+                    let config = context.getCache(cacheKey);
+                    if (config) {
+                        console.log('Using cached adaptive configuration');
+                        context.setOverlayConfig(config, { 
+                            changedProperties: ['deckLayers', 'label'],
+                            applyViewport: true 
+                        });
+                        return;
+                    }
+                    
+                    // Create different configurations based on zoom level
+                    if (viewport.zoom > 12) {
+                        // High detail view
+                        config = {
+                            deckLayers: [
+                                {
+                                    id: 'detailed-adaptive-layer',
+                                    type: 'TextLayer',
+                                    props: {
+                                        data: [
+                                            { position: [-74.006, 40.7128], text: "NYC", size: 24 },
+                                            { position: [-74.0445, 40.6892], text: "Liberty", size: 18 }
+                                        ],
+                                        getPosition: d => d.position,
+                                        getText: d => d.text,
+                                        getSize: d => d.size,
+                                        getColor: [255, 255, 255]
+                                    }
+                                }
+                            ],
+                            label: 'Adaptive Layer (Detailed)',
+                            forcedPitch: 0,
+                            forcedBearing: 0
+                        };
+                    } else {
+                        // Summary view with different viewport
+                        config = {
+                            deckLayers: [
+                                {
+                                    id: 'summary-adaptive-layer',
+                                    type: 'ScatterplotLayer',
+                                    props: {
+                                        data: [
+                                            { position: [-74.006, 40.7128], color: [255, 0, 0] },
+                                            { position: [-74.0445, 40.6892], color: [0, 255, 0] }
+                                        ],
+                                        getPosition: d => d.position,
+                                        getFillColor: d => d.color,
+                                        getRadius: 500
+                                    }
+                                }
+                            ],
+                            label: 'Adaptive Layer (Summary)',
+                            forcedPitch: 45,
+                            forcedBearing: 30,
+                            fitBounds: [
+                                [-74.1, 40.6], 
+                                [-73.9, 40.8]
+                            ]
+                        };
+                    }
+                    
+                    // Cache and apply
+                    context.setCache(cacheKey, config);
+                    context.setOverlayConfig(config, { 
+                        applyViewport: true 
+                    });
+                }
             }
         ];
 
@@ -354,7 +512,19 @@
                             getRadius: 500
                         }
                     }
-                ]
+                ],
+                onChecked: (context) => {
+                    console.log(`✅ Random layer ${id} was checked!`, {
+                        fromUser: context.isUserInteraction,
+                        pointCount: randomPoints.length,
+                        currentZoom: context.getCurrentViewport().zoom
+                    });
+                },
+                onUnchecked: (context) => {
+                    console.log(`❌ Random layer ${id} was unchecked!`, {
+                        fromUser: context.isUserInteraction
+                    });
+                }
             });
         };
 

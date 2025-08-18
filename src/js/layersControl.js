@@ -94,7 +94,7 @@ class LayersControl {
     }
 
     // Overlay Management
-    addOverlay(overlayConfig) {
+    addOverlay(overlayConfig, fireOverlayCallback = false) {
         if (!overlayConfig.id) {
             throw new Error('Overlay config must have an id');
         }
@@ -130,6 +130,11 @@ class LayersControl {
         // If defaultVisible is true, activate the overlay on the map
         if (overlayConfig.defaultVisible) {
             this.uiManager._activateOverlay(overlayConfig.id);
+            
+            // Call onChecked callback if provided and fireOverlayCallback is true
+            if (fireOverlayCallback && typeof overlayConfig.onChecked === 'function') {
+                this.uiManager._callOverlayCallback(overlayConfig.onChecked, overlayConfig.id, overlayConfig, false);
+            }
         }
         
         // Re-render UI
@@ -138,7 +143,7 @@ class LayersControl {
         return true;
     }
 
-    removeOverlay(id) {
+    removeOverlay(id, fireOverlayCallback = false) {
         // Find and remove from config
         const overlayIndex = this.options.overlays.findIndex(o => o.id === id);
         if (overlayIndex === -1) {
@@ -146,10 +151,20 @@ class LayersControl {
             return false;
         }
         
+        const overlay = this.options.overlays[overlayIndex];
+        
         // Deactivate if currently active
         const overlayState = this.stateManager.get('overlays')[id];
         if (overlayState?.visible) {
-            this.hideOverlay(id);
+            // Call onUnchecked callback if provided and fireOverlayCallback is true
+            if (fireOverlayCallback && typeof overlay.onUnchecked === 'function') {
+                this.uiManager._callOverlayCallback(overlay.onUnchecked, id, overlay, false);
+            }
+            
+            // Deactivate overlay without triggering additional callbacks
+            this.stateManager.setOverlayVisibility(id, false);
+            this.uiManager._deactivateOverlay(id);
+            this.uiManager._updateOverlayUI(id);
         }
         
         // Remove from configuration
@@ -241,7 +256,7 @@ class LayersControl {
     }
 
     // Visibility Controls
-    showOverlay(id) {
+    showOverlay(id, fireOverlayCallback = false) {
         const overlay = this.options.overlays.find(o => o.id === id);
         if (!overlay) {
             console.warn(`Overlay '${id}' not found`);
@@ -251,10 +266,16 @@ class LayersControl {
         this.stateManager.setOverlayVisibility(id, true);
         this.uiManager._activateOverlay(id);
         this.uiManager._updateOverlayUI(id);
+        
+        // Call onChecked callback if provided and fireOverlayCallback is true
+        if (fireOverlayCallback && typeof overlay.onChecked === 'function') {
+            this.uiManager._callOverlayCallback(overlay.onChecked, id, overlay, false);
+        }
+        
         return true;
     }
 
-    hideOverlay(id) {
+    hideOverlay(id, fireOverlayCallback = false) {
         const overlay = this.options.overlays.find(o => o.id === id);
         if (!overlay) {
             console.warn(`Overlay '${id}' not found`);
@@ -264,6 +285,12 @@ class LayersControl {
         this.stateManager.setOverlayVisibility(id, false);
         this.uiManager._deactivateOverlay(id);
         this.uiManager._updateOverlayUI(id);
+        
+        // Call onUnchecked callback if provided and fireOverlayCallback is true
+        if (fireOverlayCallback && typeof overlay.onUnchecked === 'function') {
+            this.uiManager._callOverlayCallback(overlay.onUnchecked, id, overlay, false);
+        }
+        
         return true;
     }
 

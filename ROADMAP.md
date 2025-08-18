@@ -38,5 +38,5 @@ All two callbacks onSelect, onDeleselect on Overlay
 V2
 ===
 1. Removing overlay leaves empty groups on UI
-2. fitBounds é calculado antes, mas para renderOnClick pode ser um problema
-3. layersControl.defaultBaseId  WHY ?
+2. layersControl.defaultBaseId  WHY ?
+3. In case of ctx.setOverlayConfg with changedProperty of deckLayers, let deckLayer handle its changes directly, no need to remove and add again.
