@@ -65,6 +65,7 @@ Supported fields:
 - **deckLayers** (array, optional) — deck.gl layer definitions
 - **panOnAdd** (boolean, optional)
 - **panZoom** (number, optional)
+- **fitBounds** (array, optional) — explicit bounds [[minLng, minLat], [maxLng, maxLat]] to fit map to on overlay activation (takes precedence over panOnAdd)
 - **anchor** ({ beforeId?: string }, optional)
 - **minZoomLevel** (number, optional)
 - **maxZoomLevel** (number, optional)

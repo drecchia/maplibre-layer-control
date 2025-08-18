@@ -1,4 +1,58 @@
 /**
+ * BoundsHelper - Static utility class for calculating bounding boxes
+ */
+class BoundsHelper {
+    /**
+     * Calculate bounding box from an array of coordinate pairs
+     * @param {Array<[number, number]>} points - Array of [lng, lat] coordinate pairs
+     * @param {number|Object} padding - Padding around bounds. Can be:
+     *   - number: uniform padding for all sides
+     *   - object: {top, bottom, left, right} for different padding per side
+     * @returns {Array<[number, number]>} Bounding box as [[minLng, minLat], [maxLng, maxLat]]
+     */
+    static calculateBounds(points, padding = 0) {
+        if (!points || !Array.isArray(points) || points.length === 0) {
+            throw new Error('Points array is required and must not be empty');
+        }
+
+        let minLng = Infinity;
+        let minLat = Infinity;
+        let maxLng = -Infinity;
+        let maxLat = -Infinity;
+
+        // Calculate min/max from all points
+        for (const [lng, lat] of points) {
+            minLng = Math.min(minLng, lng);
+            maxLng = Math.max(maxLng, lng);
+            minLat = Math.min(minLat, lat);
+            maxLat = Math.max(maxLat, lat);
+        }
+
+        // Apply padding
+        let paddingTop, paddingBottom, paddingLeft, paddingRight;
+        
+        if (typeof padding === 'number') {
+            // Uniform padding
+            paddingTop = paddingBottom = paddingLeft = paddingRight = padding;
+        } else if (typeof padding === 'object' && padding !== null) {
+            // Object padding
+            paddingTop = padding.top || 0;
+            paddingBottom = padding.bottom || 0;
+            paddingLeft = padding.left || 0;
+            paddingRight = padding.right || 0;
+        } else {
+            // Invalid padding, use no padding
+            paddingTop = paddingBottom = paddingLeft = paddingRight = 0;
+        }
+
+        return [
+            [minLng - paddingLeft, minLat - paddingBottom],
+            [maxLng + paddingRight, maxLat + paddingTop]
+        ];
+    }
+}
+
+/**
  * EventEmitter - Simple event handling utility
  */
 class EventEmitter {
@@ -800,34 +854,62 @@ class OverlayManager extends EventEmitter {
             }
         }
 
-        // Handle forced viewport changes (bearing and pitch) - only when showing overlay
-        const shouldForceViewport = isUserInteraction || (overlay.forcedBearing !== undefined || overlay.forcedPitch !== undefined);
-        if (shouldForceViewport && (overlay.forcedBearing !== undefined || overlay.forcedPitch !== undefined)) {
-            const viewportChanges = {};
+        // Handle fitBounds first if enabled - this will change the viewport
+        if (isUserInteraction && overlay.fitBounds) {
+            // Apply fitBounds immediately with provided bounds
+            this.map.fitBounds(overlay.fitBounds);
             
-            // Always apply forced values if they exist
-            if (overlay.forcedBearing !== undefined) {
-                viewportChanges.bearing = overlay.forcedBearing;
+            // After fitBounds, apply any forced bearing/pitch if they exist
+            if (overlay.forcedBearing !== undefined || overlay.forcedPitch !== undefined) {
+                setTimeout(() => {
+                    const viewportChanges = {};
+                    if (overlay.forcedBearing !== undefined) {
+                        viewportChanges.bearing = overlay.forcedBearing;
+                    }
+                    if (overlay.forcedPitch !== undefined) {
+                        viewportChanges.pitch = overlay.forcedPitch;
+                    }
+                    
+                    if (Object.keys(viewportChanges).length > 0) {
+                        this.map.jumpTo(viewportChanges);
+                        
+                        // Update state store
+                        if (this.stateStore) {
+                            this.stateStore.setViewport(viewportChanges);
+                        }
+                    }
+                }, 1000); // Wait for fitBounds animation to complete
             }
-            if (overlay.forcedPitch !== undefined) {
-                viewportChanges.pitch = overlay.forcedPitch;
-            }
-            
-            if (Object.keys(viewportChanges).length > 0) {
-                // Use jumpTo for immediate change (no animation to avoid race conditions)
-                this.map.jumpTo({
-                    ...viewportChanges
-                });
+        } else {
+            // Handle forced viewport changes (bearing and pitch) - only when showing overlay
+            const shouldForceViewport = isUserInteraction || (overlay.forcedBearing !== undefined || overlay.forcedPitch !== undefined);
+            if (shouldForceViewport && (overlay.forcedBearing !== undefined || overlay.forcedPitch !== undefined)) {
+                const viewportChanges = {};
                 
-                // Update state store
-                if (this.stateStore) {
-                    this.stateStore.setViewport(viewportChanges);
+                // Always apply forced values if they exist
+                if (overlay.forcedBearing !== undefined) {
+                    viewportChanges.bearing = overlay.forcedBearing;
+                }
+                if (overlay.forcedPitch !== undefined) {
+                    viewportChanges.pitch = overlay.forcedPitch;
+                }
+                
+                if (Object.keys(viewportChanges).length > 0) {
+                    // Use jumpTo for immediate change (no animation to avoid race conditions)
+                    this.map.jumpTo({
+                        ...viewportChanges
+                    });
+                    
+                    // Update state store
+                    if (this.stateStore) {
+                        this.stateStore.setViewport(viewportChanges);
+                    }
                 }
             }
         }
 
-        // Handle pan first if enabled - this might change the zoom level
-        if (isUserInteraction && overlay.panOnAdd && overlay.deckLayers) {
+        // Handle pan if enabled and fitBounds is not used
+        if (isUserInteraction && !overlay.fitBounds && overlay.panOnAdd && overlay.deckLayers) {
             // Increase delay if forced viewport changes were applied to avoid conflicts
             const delay = (overlay.forcedBearing !== undefined || overlay.forcedPitch !== undefined) ? 300 : 100;
             
@@ -2367,3 +2449,6 @@ class LayersControl extends EventEmitter {
         this.map.on('pitchend', debouncedSave);
     }
 }
+
+// Export BoundsHelper as a public utility
+window.BoundsHelper = BoundsHelper;

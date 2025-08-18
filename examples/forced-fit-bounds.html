@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>LayersControl fitBounds Example</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- MapLibre GL CSS -->
+  <link href="https://unpkg.com/maplibre-gl@4.1.1/dist/maplibre-gl.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/deck.gl@9.1.14/dist/stylesheet.min.css">
+  <link href="../src/css/main.css" rel="stylesheet">
+  <style>
+    html, body, #map { height: 100%; margin: 0; padding: 0; }
+    #map { width: 100vw; height: 100vh; }
+    .test-info {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: white;
+      padding: 15px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      max-width: 320px;
+      z-index: 1000;
+    }
+    .test-info h3 {
+      margin: 0 0 10px 0;
+      color: #333;
+    }
+    .test-info ul {
+      margin: 0;
+      padding-left: 20px;
+    }
+    .test-info li {
+      margin-bottom: 5px;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <div class="test-info">
+    <h3>🎯 fitBounds Test</h3>
+    <ul>
+      <li>Toggle overlays using the layer control in the top-left corner.</li>
+      <li>Each overlay with <code>fitBounds</code> array will fit the map to those specific bounds.</li>
+      <li>The "Global Points" overlay also has <code>forcedBearing: 30</code> applied after fitBounds.</li>
+      <li>BoundsHelper utility calculates bounds from coordinate arrays.</li>
+    </ul>
+  </div>
+  <!-- MapLibre GL JS -->
+  <script src="https://unpkg.com/maplibre-gl@4.1.1/dist/maplibre-gl.js"></script>
+  <!-- Deck.gl CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/deck.gl@9.1.14/dist.min.js"></script>
+  <!-- LayersControl JS -->
+  <script src="../src/js/main.js"></script>
+  <script>
+    const baseStyles = [
+      {
+        id: 'osm',
+        label: 'OpenStreetMap',
+        style: 'https://demotiles.maplibre.org/style.json',
+        strategy: 'setStyle'
+      }
+    ];
+
+    // Define data points for overlays
+    const usaCitiesData = [
+      { position: [-74.0, 40.7], name: 'New York' },
+      { position: [-118.2, 34.0], name: 'Los Angeles' },
+      { position: [-87.6, 41.9], name: 'Chicago' },
+      { position: [-95.4, 29.8], name: 'Houston' },
+      { position: [-75.2, 39.9], name: 'Philadelphia' }
+    ];
+
+    const globalPointsData = [
+      { position: [-74.0, 40.7], name: 'New York' },
+      { position: [2.3, 48.9], name: 'Paris' },
+      { position: [139.7, 35.7], name: 'Tokyo' },
+      { position: [-33.9, -18.9], name: 'São Paulo' },
+      { position: [151.2, -33.9], name: 'Sydney' }
+    ];
+
+    const localAreaData = [
+      { position: [-46.8, -22.1], name: 'São Paulo Center' },
+      { position: [-46.7, -22.0], name: 'São Paulo North' },
+      { position: [-46.9, -22.2], name: 'São Paulo South' }
+    ];
+
+    const overlays = [
+      {
+        id: 'usa-cities',
+        label: 'USA Cities',
+        fitBounds: BoundsHelper.calculateBounds(usaCitiesData.map(d => d.position)),
+        deckLayers: [
+          {
+            id: 'usa-cities-layer',
+            type: 'ScatterplotLayer',
+            props: {
+              data: usaCitiesData,
+              getPosition: d => d.position,
+              getRadius: 15000,
+              getFillColor: [255, 140, 0],
+              getLineColor: [255, 255, 255],
+              lineWidthMinPixels: 2,
+              pickable: true
+            }
+          }
+        ],
+        defaultVisible: false,
+        opacityControls: true
+      },
+      {
+        id: 'global-points',
+        label: 'Global Points (with forced bearing)',
+        fitBounds: BoundsHelper.calculateBounds(globalPointsData.map(d => d.position), 0.2),
+        forcedBearing: 30,
+        deckLayers: [
+          {
+            id: 'global-points-layer',
+            type: 'ScatterplotLayer',
+            props: {
+              data: globalPointsData,
+              getPosition: d => d.position,
+              getRadius: 25000,
+              getFillColor: [0, 200, 255],
+              getLineColor: [255, 255, 255],
+              lineWidthMinPixels: 2,
+              pickable: true
+            }
+          }
+        ],
+        defaultVisible: false,
+        opacityControls: true
+      },
+      {
+        id: 'local-area',
+        label: 'Local Area (no fitBounds)',
+        panOnAdd: true,
+        panZoom: 10,
+        deckLayers: [
+          {
+            id: 'local-area-layer',
+            type: 'ScatterplotLayer',
+            props: {
+              data: localAreaData,
+              getPosition: d => d.position,
+              getRadius: 5000,
+              getFillColor: [255, 50, 50],
+              getLineColor: [255, 255, 255],
+              lineWidthMinPixels: 2,
+              pickable: true
+            }
+          }
+        ],
+        defaultVisible: false,
+        opacityControls: true
+      }
+    ];
+
+    const map = new maplibregl.Map({
+      container: 'map',
+      style: baseStyles[0].style,
+      center: [0, 0],
+      zoom: 2
+    });
+
+    const layersControl = new LayersControl({
+      baseStyles: baseStyles,
+      overlays: overlays,
+      defaultBaseId: 'osm'
+    });
+
+    map.addControl(layersControl, 'top-left');
+
+    // Event listeners for demonstration
+    layersControl.on('overlaychange', (event) => {
+      console.log('Overlay changed:', event.id, event.visible ? 'shown' : 'hidden');
+    });
+  </script>
+</body>
+</html>

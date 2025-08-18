@@ -77,6 +77,16 @@ See [CONFIGURATION.md](./CONFIGURATION.md) for a full schema and examples.
 
 ---
 
+### BoundsHelper (public utility)
+- `calculateBounds(coords: Array<[number,number]> | Array<object>, padding?: number|object): [ [minLng, minLat], [maxLng, maxLat] ]`
+  - Utility to calculate a bounding box from an array of coordinate pairs or objects.
+  - `coords` may be an array of [lng, lat] pairs or objects with numeric longitude/latitude properties (commonly [lng,lat] arrays).
+  - `padding` may be a number (fractional padding applied relative to span) or an object with explicit pixel/coordinate padding; when omitted a small default padding is applied to avoid zero-area bounds.
+  - Returns an explicit bounds array suitable for the `fitBounds` overlay attribute or for use with map fit methods.
+
+
+---
+
 ## Overlay Configuration Attributes
 
 Documented attributes are supported in code:
@@ -97,6 +107,7 @@ Documented attributes are supported in code:
 - **forcedBaseLayerId**: string (optional)
 - **forcedBearing**: number (optional)
 - **forcedPitch**: number (optional)
+ - **fitBounds**: array (optional) — explicit bounds [[minLng, minLat], [maxLng, maxLat]] to fit the map to when the overlay is activated (takes precedence over `panOnAdd`). Can be produced by `BoundsHelper.calculateBounds()`.
 - **tooltip**: string | object (optional)
 - **getTooltip**: function (optional)
 

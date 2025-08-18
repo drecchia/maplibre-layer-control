@@ -19,6 +19,14 @@ const groups = [
         group: 'demo-group',
 
 
-4.
+4. IMPORTANTE
+Move getTooltip from overlay to decklayers
+5. 
+FitBounds
+6.
+Overlay priority ( like zindex )
+7.
 Not working:
 toogling multi times changing layers order
+8.
+RenderOnClick should respect minZoomLevel, and should be possible to call multiples times considering bbox
